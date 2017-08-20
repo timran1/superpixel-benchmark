@@ -1,5 +1,5 @@
-#!/bin/bash
-# Copyright (c) 2016, David Stutz
+#
+# Copyright (c) 2016, David Stutz 
 # Contact: david.stutz@rwth-aachen.de, davidstutz.de
 # All rights reserved.
 # 
@@ -27,17 +27,14 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+cmake_minimum_required (VERSION 2.8)
+project (superpixel_benchmark)
 
-# Example of evaluating W.
-# Supposed to be run from within examples/.
+find_package(OpenCV REQUIRED)
+find_package(Boost COMPONENTS system filesystem program_options REQUIRED)
 
-SUPERPIXELS=("200" "300" "400" "600" "800" "1000" "1200" "1400" "1600" "1800" "2000" "2400" "2800" "3200" "3600" "4000" "4600" "5200")
-
-for SUPERPIXEL in "${SUPERPIXELS[@]}"
-do
-    ../bin/w_cli ../data/BSDS500/images/test/ --superpixels $SUPERPIXEL -o ../output/w/$SUPERPIXEL -w
-    ../bin/eval_summary_cli ../output/w/$SUPERPIXEL ../data/BSDS500/images/test ../data/BSDS500/csv_groundTruth/test --append-file ../output/w.csv --vis
-    find ../output/w/$SUPERPIXEL -type f -name '*[^summary|correlation|results].csv' -delete
-done
-
-../bin/eval_average_cli ../output/w.csv -o ../output/w_average.csv
+include_directories(../lib_eval/ ../lib_customslic/ ${OpenCV_INCLUDE_DIRS} 
+        ${Boost_INCLUDE_DIRS})
+add_executable(customslic_cli main.cpp)
+target_link_libraries(customslic_cli eval slic ${Boost_LIBRARIES} ${OpenCV_LIBS})

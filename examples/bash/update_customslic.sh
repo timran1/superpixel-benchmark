@@ -28,16 +28,36 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# Example of evaluating W.
+# Example of evaluating and comparing SEEDS and reSEEDS
 # Supposed to be run from within examples/.
+
+algo1="slic"
+algo2="customslic"
+
+echo "Updating ${algo2}"
+
+# clean up old results
+rm ../output/${algo2}_average.csv
+rm ../output/${algo2}.csv
+rm -rf ../output/${algo2}
 
 SUPERPIXELS=("200" "300" "400" "600" "800" "1000" "1200" "1400" "1600" "1800" "2000" "2400" "2800" "3200" "3600" "4000" "4600" "5200")
 
 for SUPERPIXEL in "${SUPERPIXELS[@]}"
 do
-    ../bin/w_cli ../data/BSDS500/images/test/ --superpixels $SUPERPIXEL -o ../output/w/$SUPERPIXEL -w
-    ../bin/eval_summary_cli ../output/w/$SUPERPIXEL ../data/BSDS500/images/test ../data/BSDS500/csv_groundTruth/test --append-file ../output/w.csv --vis
-    find ../output/w/$SUPERPIXEL -type f -name '*[^summary|correlation|results].csv' -delete
+    # algo 1
+    # ../bin/${algo1}_cli ../data/BSDS500/images/test/ --superpixels $SUPERPIXEL -o ../output/${algo1}/$SUPERPIXEL -w
+    # ../bin/eval_summary_cli ../output/${algo1}/$SUPERPIXEL ../data/BSDS500/images/test ../data/BSDS500/csv_groundTruth/test --append-file ../output/${algo1}.csv --vis
+    # find ../output/${algo1}/$SUPERPIXEL -type f -name '*[^summary|correlation|results].csv' -delete
+    
+    # algo 2
+    ../bin/${algo2}_cli ../data/BSDS500/images/test/ --superpixels $SUPERPIXEL -o ../output/${algo2}/$SUPERPIXEL -w
+    ../bin/eval_summary_cli ../output/${algo2}/$SUPERPIXEL ../data/BSDS500/images/test ../data/BSDS500/csv_groundTruth/test --append-file ../output/${algo2}.csv --vis
+    find ../output/${algo2}/$SUPERPIXEL -type f -name '*[^summary|correlation|results].csv' -delete
 done
 
-../bin/eval_average_cli ../output/w.csv -o ../output/w_average.csv
+# ../bin/eval_average_cli ../output/${algo1}.csv -o ../output/${algo1}_average.csv
+../bin/eval_average_cli ../output/${algo2}.csv -o ../output/${algo2}_average.csv
+
+# run python script to create graphs of the comparison
+python ./make-graph.py  ${algo1} ${algo2}

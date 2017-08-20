@@ -28,14 +28,14 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# Example of evaluating W.
+# Example of evaluating SLIC.
 # Supposed to be run from within examples/.
 
 SUPERPIXELS=("200" "300" "400" "600" "800" "1000" "1200" "1400" "1600" "1800" "2000" "2400" "2800" "3200" "3600" "4000" "4600" "5200")
 
 for SUPERPIXEL in "${SUPERPIXELS[@]}"
 do
-    ../bin/w_cli ../data/BSDS500/images/test/ --superpixels $SUPERPIXEL -o ../output/w/$SUPERPIXEL -w
+    ../bin/slic_cli ../data/BSDS500/images/test/ --superpixels $SUPERPIXEL -o ../output/w/$SUPERPIXEL -w
     ../bin/eval_summary_cli ../output/w/$SUPERPIXEL ../data/BSDS500/images/test ../data/BSDS500/csv_groundTruth/test --append-file ../output/w.csv --vis
     find ../output/w/$SUPERPIXEL -type f -name '*[^summary|correlation|results].csv' -delete
 done

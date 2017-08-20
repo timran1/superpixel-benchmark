@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Copyright (c) 2016, David Stutz
 # Contact: david.stutz@rwth-aachen.de, davidstutz.de
 # All rights reserved.
