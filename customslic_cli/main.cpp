@@ -35,7 +35,7 @@
 #include <boost/program_options.hpp>
 #include <boost/timer.hpp>
 #include <bitset>
-#include "slic_opencv.h"
+#include "customslic_opencv.h"
 #include "io_util.h"
 #include "superpixel_tools.h"
 #include "visualization.h"
@@ -139,18 +139,10 @@ int main(int argc, const char** argv) {
                 superpixels);
         
         boost::timer timer;
-        SLIC_OpenCV::computeSuperpixels(image, region_size, compactness, 
-                iterations, perturb_seeds, color_space, labels);
+        CUSTOMSLIC_OpenCV::computeSuperpixels_extended(image, region_size, compactness, 
+                iterations, perturb_seeds, color_space, labels, superpixels);
         float elapsed = timer.elapsed();
         total += elapsed;
-        
-        int unconnected_components = SuperpixelTools::relabelConnectedSuperpixels(labels);
-        
-        if (wordy) {
-            std::cout << SuperpixelTools::countSuperpixels(labels) << " superpixels for " << it->first 
-                    << " (" << unconnected_components << " not connected; " 
-                    << elapsed <<")." << std::endl;
-        }
         
         if (!output_dir.empty()) {
             boost::filesystem::path csv_file(output_dir 

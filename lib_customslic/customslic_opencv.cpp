@@ -108,7 +108,7 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat, int regi
     else
     {
         // tiling variables
-        int square_side = 120;
+        int square_side = 64;
 
         // pad image and labels to make full squares
         cv::Mat padded_mat;

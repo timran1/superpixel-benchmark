@@ -51,7 +51,7 @@ do
     # find ../output/${algo1}/$SUPERPIXEL -type f -name '*[^summary|correlation|results].csv' -delete
     
     # algo 2
-    ../bin/${algo2}_cli ../data/BSDS500/images/test/ --superpixels $SUPERPIXEL -o ../output/${algo2}/$SUPERPIXEL -w
+    ../bin/${algo2}_cli ../data/BSDS500/images/test/ --superpixels $SUPERPIXEL -o ../output/${algo2}/$SUPERPIXEL -w --iterations 10
     ../bin/eval_summary_cli ../output/${algo2}/$SUPERPIXEL ../data/BSDS500/images/test ../data/BSDS500/csv_groundTruth/test --append-file ../output/${algo2}.csv --vis
     find ../output/${algo2}/$SUPERPIXEL -type f -name '*[^summary|correlation|results].csv' -delete
 done

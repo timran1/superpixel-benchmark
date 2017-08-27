@@ -37,4 +37,4 @@ find_package(Boost COMPONENTS system filesystem program_options REQUIRED)
 include_directories(../lib_eval/ ../lib_customslic/ ${OpenCV_INCLUDE_DIRS} 
         ${Boost_INCLUDE_DIRS})
 add_executable(customslic_cli main.cpp)
-target_link_libraries(customslic_cli eval slic ${Boost_LIBRARIES} ${OpenCV_LIBS})
+target_link_libraries(customslic_cli eval customslic ${Boost_LIBRARIES} ${OpenCV_LIBS})

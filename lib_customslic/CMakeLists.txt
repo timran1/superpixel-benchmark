@@ -33,9 +33,12 @@ project (superpixel_benchmark)
 
 find_package(OpenCV REQUIRED)
 
-include_directories(${OpenCV_INCLUDE_DIRS})
+include_directories(../lib_eval/ ${OpenCV_INCLUDE_DIRS})
+
+set(CMAKE_CXX_FLAGS "-g -O0")
+
 add_library(customslic
-    slic_opencv.cpp
+    customslic_opencv.cpp
     SLIC.cpp
 )
 target_link_libraries(customslic ${OpenCV_LIBRARIES})
