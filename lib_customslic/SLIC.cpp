@@ -10,7 +10,7 @@
 #include <fstream>
 #include <assert.h>
 #include "SLIC.h"
-
+#include "libfixp.h"
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -785,6 +785,27 @@ void SLIC::GetKValues_LABXYZ(
 	}
 }
 
+class ImageRasterScan
+{
+public:
+	int skip;
+
+	ImageRasterScan (int skip)
+	{
+		this->skip = skip;
+	}
+
+	bool is_exact_index (int index)
+	{
+		return (index % skip == 0);
+	}
+
+	int get_near_index (int index)
+	{
+		return index - (index % skip);
+	}
+};
+
 //===========================================================================
 ///	PerformSuperpixelSLIC
 ///
@@ -821,13 +842,29 @@ void SLIC::PerformSuperpixelSLIC(
 	vector<float> distvec(sz, DBL_MAX);
         
 	float invwt = 1.0/((STEP/M)*(STEP/M));
-        
+
+
+	bool use_pyramid_access = false;
+
+	vector<int> access_pattern (iterations, 1);
+	if (use_pyramid_access)
+	{
+		// TODO: assign a value to klabels[i] for every pixel as initial seeding
+		// to avoid seg faults.
+
+		access_pattern [0] = 16;	// first iteration access of all pixels assigns initial seeds automatically.
+		access_pattern [1] = 1;
+		access_pattern [2] = 1;
+	}
+
 	int x1, y1, x2, y2;
 	float l, a, b;
 	float dist;
 	float distxy;
 	for( int itr = 0; itr < iterations; itr++ )
 	{
+		ImageRasterScan image_scan (access_pattern[itr]);
+
 		distvec.assign(sz, DBL_MAX);
 		for( int n = 0; n < numk; n++ )
 		{
@@ -836,12 +873,14 @@ void SLIC::PerformSuperpixelSLIC(
                         x1 = max(0.0f,			kseedsx[n]-offset);
                         x2 = min((float)m_width,	kseedsx[n]+offset);
 
-
 			for( int y = y1; y < y2; y++ )
 			{
 				for( int x = x1; x < x2; x++ )
 				{
 					int i = y*m_width + x;
+
+					if (!image_scan.is_exact_index (i))
+						continue;
 
 					l = m_lvec[i];
 					a = m_avec[i];
@@ -885,6 +924,14 @@ void SLIC::PerformSuperpixelSLIC(
 		{
 			for( int c = 0; c < m_width; c++ )
 			{
+				// If not fitting the pyramid scan pattern or the pixel has not
+				// been assigned to a SP yet, just continue
+				if (!image_scan.is_exact_index (ind) || klabels[ind] == -1)
+				{
+					ind++;
+					continue;
+				}
+
 				sigmal[klabels[ind]] += m_lvec[c + m_width*r];
 				sigmaa[klabels[ind]] += m_avec[c + m_width*r];
 				sigmab[klabels[ind]] += m_bvec[c + m_width*r];
