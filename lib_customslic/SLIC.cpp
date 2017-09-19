@@ -861,6 +861,11 @@ void SLIC::PerformSuperpixelSLIC(
 	float l, a, b;
 	float dist;
 	float distxy;
+
+	float l_diff, a_diff, b_diff, x_diff, y_diff;
+	float l_diff_sq, a_diff_sq, b_diff_sq, x_diff_sq, y_diff_sq;
+	float temp_dist;
+
 	for( int itr = 0; itr < iterations; itr++ )
 	{
 		ImageRasterScan image_scan (access_pattern[itr]);
@@ -886,15 +891,27 @@ void SLIC::PerformSuperpixelSLIC(
 					a = m_avec[i];
 					b = m_bvec[i];
 
-					dist =			(l - kseedsl[n])*(l - kseedsl[n]) +
-								(a - kseedsa[n])*(a - kseedsa[n]) +
-								(b - kseedsb[n])*(b - kseedsb[n]);
+					l_diff = (l - kseedsl[n]);
+					a_diff = (a - kseedsa[n]);
+					b_diff = (b - kseedsb[n]);
 
-					distxy =		(x - kseedsx[n])*(x - kseedsx[n]) +
-								(y - kseedsy[n])*(y - kseedsy[n]);
+					l_diff_sq = l_diff * l_diff;
+					a_diff_sq = a_diff * a_diff;
+					b_diff_sq = a_diff * a_diff;
+
+					dist =			l_diff_sq + a_diff_sq + b_diff_sq;
+
+					x_diff = (x - kseedsx[n]);
+					y_diff = (y - kseedsy[n]);
+
+					x_diff_sq = x_diff * x_diff;
+					y_diff_sq = y_diff * y_diff;
+
+					distxy =		x_diff_sq + y_diff_sq;
 					
 					//------------------------------------------------------------------------
-					dist += distxy*invwt;//dist = sqrt(dist) + sqrt(distxy*invwt);//this is more exact
+					temp_dist = distxy*invwt;
+					dist = dist + temp_dist;//dist = sqrt(dist) + sqrt(distxy*invwt);//this is more exact
 					//------------------------------------------------------------------------
 					if( dist < distvec[i] )
 					{
@@ -932,15 +949,15 @@ void SLIC::PerformSuperpixelSLIC(
 					continue;
 				}
 
-				sigmal[klabels[ind]] += m_lvec[c + m_width*r];
-				sigmaa[klabels[ind]] += m_avec[c + m_width*r];
-				sigmab[klabels[ind]] += m_bvec[c + m_width*r];
-				sigmax[klabels[ind]] += c;
-				sigmay[klabels[ind]] += r;
+				sigmal[klabels[ind]] = sigmal[klabels[ind]] + m_lvec[c + m_width*r];
+				sigmaa[klabels[ind]] = sigmaa[klabels[ind]] + m_avec[c + m_width*r];
+				sigmab[klabels[ind]] = sigmab[klabels[ind]] + m_bvec[c + m_width*r];
+				sigmax[klabels[ind]] = sigmax[klabels[ind]] + c;
+				sigmay[klabels[ind]] = sigmay[klabels[ind]] + r;
 				//------------------------------------
 				//edgesum[klabels[ind]] += edgemag[ind];
 				//------------------------------------
-				clustersize[klabels[ind]] += 1.0;
+				clustersize[klabels[ind]] = clustersize[klabels[ind]] + 1.0;
 				ind++;
 			}
 		}}
