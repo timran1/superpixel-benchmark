@@ -35,7 +35,8 @@ find_package(OpenCV REQUIRED)
 
 include_directories(../lib_eval/ ${OpenCV_INCLUDE_DIRS})
 
-set(CMAKE_CXX_FLAGS "-g -O0")
+#set(CMAKE_CXX_FLAGS "-g -O0")
+set(CMAKE_CXX_FLAGS "-O3")
 
 add_library(customslic
     customslic_opencv.cpp

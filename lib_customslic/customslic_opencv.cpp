@@ -43,7 +43,7 @@ using namespace cv;
 
 void CUSTOMSLIC_OpenCV::computeSuperpixels(const cv::Mat &mat, int region_size, 
         double compactness, int iterations, bool perturb_seeds, 
-        int color_space, cv::Mat &labels) {
+        int color_space, cv::Mat &labels, bool stateful) {
     
     // Convert matrix to unsigned int array.
     unsigned int* image = new unsigned int[mat.rows*mat.cols];
@@ -73,7 +73,7 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels(const cv::Mat &mat, int region_size,
 
     slic.DoSuperpixelSegmentation_ForGivenSuperpixelStep(image, mat.cols, 
             mat.rows, segmentation, number_of_labels, region_size, 
-            compactness, perturb_seeds, iterations, color_space);
+            compactness, perturb_seeds, iterations, color_space, stateful);
 
     // Convert labels.
     labels.create(mat.rows, mat.cols, CV_32SC1);
@@ -87,9 +87,9 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels(const cv::Mat &mat, int region_size,
 
 void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat, int region_size, 
         double compactness, int iterations, bool perturb_seeds, 
-        int color_space, cv::Mat &labels, int superpixels) {
+        int color_space, cv::Mat &labels, int superpixels, bool stateful) {
     
-    bool tiling = true;
+    bool tiling = false;
 
     int unconnected_components = 0;
 
@@ -101,7 +101,7 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat, int regi
 
         computeSuperpixels(mat, region_size, 
             compactness, iterations, perturb_seeds, 
-            color_space, labels);
+            color_space, labels, stateful);
 
         unconnected_components = SuperpixelTools::relabelConnectedSuperpixels(labels);
     }
@@ -152,7 +152,7 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat, int regi
             // the main super pixel algo
             computeSuperpixels(img_segs[i], region_size, 
                     compactness, iterations, perturb_seeds, 
-                    color_space, labels_segs[i]);
+                    color_space, labels_segs[i], false);
 
             // TODO: Check if this can be moved out of the loop.
             int unconnected_components = SuperpixelTools::relabelConnectedSuperpixels(labels_segs[i]);
@@ -177,4 +177,57 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat, int regi
         labels = padded_labels (Rect (0, 0, mat.cols, mat.rows));
     }
 
+}
+
+void CUSTOMSLIC_OpenCV::getLabelContourMask(const cv::Mat &mat, cv::Mat &labels, cv::OutputArray _mask, bool _thick_line)
+{
+    // default width
+    int line_width = 2;
+
+    if ( !_thick_line ) line_width = 1;
+
+    int m_width = mat.cols;
+    int m_height = mat.rows;
+
+    _mask.create( m_height, m_width, CV_8UC1 );
+    Mat mask = _mask.getMat();
+
+    mask.setTo(0);
+
+    const int dx8[8] = { -1, -1,  0,  1, 1, 1, 0, -1 };
+    const int dy8[8] = {  0, -1, -1, -1, 0, 1, 1,  1 };
+
+    int sz = m_width*m_height;
+
+    vector<bool> istaken(sz, false);
+
+    int mainindex = 0;
+    for( int j = 0; j < m_height; j++ )
+    {
+      for( int k = 0; k < m_width; k++ )
+      {
+        int np = 0;
+        for( int i = 0; i < 8; i++ )
+        {
+          int x = k + dx8[i];
+          int y = j + dy8[i];
+
+          if( (x >= 0 && x < m_width) && (y >= 0 && y < m_height) )
+          {
+            int index = y*m_width + x;
+
+            if( false == istaken[index] )
+            {
+              if( labels.at<int>(j,k) != labels.at<int>(y,x) ) np++;
+            }
+          }
+        }
+        if( np > line_width )
+        {
+           mask.at<char>(j,k) = (uchar)255;
+           istaken[mainindex] = true;
+        }
+        mainindex++;
+      }
+    }
 }

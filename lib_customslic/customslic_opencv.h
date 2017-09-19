@@ -50,14 +50,18 @@ public:
      */
     static void computeSuperpixels(const cv::Mat &image, int region_size, 
             double compactness, int iterations, bool perturb_seeds, 
-            int color_space, cv::Mat &labels);
+            int color_space, cv::Mat &labels, bool stateful);
 
     /*
         Extended superpixel handling
     */
     static void computeSuperpixels_extended(const cv::Mat &image, int region_size, 
             double compactness, int iterations, bool perturb_seeds, 
-            int color_space, cv::Mat &labels, int superpixels);
+            int color_space, cv::Mat &labels, int superpixels, bool stateful);
+
+
+    static void getLabelContourMask(const cv::Mat &mat,
+            cv::Mat &labels, cv::OutputArray _mask, bool _thick_line);
 };
 
 #endif	/* SLIC_OPENCV_H */

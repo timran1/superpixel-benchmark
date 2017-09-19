@@ -806,6 +806,27 @@ public:
 	}
 };
 
+class State
+{
+public:
+	vector<float>				kseedsl;
+	vector<float>				kseedsa;
+	vector<float>				kseedsb;
+	vector<float>				kseedsx;
+	vector<float>				kseedsy;
+    int*						klabels;
+    bool						is_init;
+    int 						superpixels;
+    State ()
+    {
+		is_init = false;
+		klabels = NULL;
+		superpixels = 0;
+    }
+};
+
+State state;
+
 //===========================================================================
 ///	PerformSuperpixelSLIC
 ///
@@ -822,8 +843,33 @@ void SLIC::PerformSuperpixelSLIC(
         const int&				STEP,
         const vector<float>&                   edgemag,
 	const float&				M,
-        const int                               iterations)
+        const int                               iterations,
+		const bool stateful)
 {
+	if (!stateful)
+		state.is_init = false;
+
+	if (stateful && state.is_init)
+	{
+		if (kseedsl.size() == state.superpixels)
+		{
+			// previous state is valid
+			kseedsl = state.kseedsl;
+			kseedsa = state.kseedsa;
+			kseedsb = state.kseedsb;
+			kseedsx = state.kseedsx;
+			kseedsy = state.kseedsy;
+
+			int sz = m_width*m_height;
+			for (int i=0; i<sz; i++)
+				klabels[i] = state.klabels[i];
+		}else
+		{
+			// Delete older state
+			state.is_init = false;
+		}
+	}
+
 	int sz = m_width*m_height;
 	const int numk = kseedsl.size();
 	//----------------
@@ -849,9 +895,6 @@ void SLIC::PerformSuperpixelSLIC(
 	vector<int> access_pattern (iterations, 1);
 	if (use_pyramid_access)
 	{
-		// TODO: assign a value to klabels[i] for every pixel as initial seeding
-		// to avoid seg faults.
-
 		access_pattern [0] = 16;	// first iteration access of all pixels assigns initial seeds automatically.
 		access_pattern [1] = 1;
 		access_pattern [2] = 1;
@@ -979,6 +1022,26 @@ void SLIC::PerformSuperpixelSLIC(
 			//edgesum[k] *= inv[k];
 			//------------------------------------
 		}}
+	}
+
+	if (stateful)
+	{
+		state.kseedsl = kseedsl;
+		state.kseedsa = kseedsa;
+		state.kseedsb = kseedsb;
+		state.kseedsx = kseedsx;
+		state.kseedsy = kseedsy;
+
+		int sz = m_width*m_height;
+
+		if (state.klabels == NULL)
+			state.klabels = new int[sz];
+
+		for (int i=0; i<sz; i++)
+			state.klabels[i] = klabels[i];
+
+		state.is_init = true;
+		state.superpixels = numk;
 	}
 }
 
@@ -1802,7 +1865,8 @@ void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelStep(
         const float&                                   compactness,
         const bool&                                     perturbseeds,
         const int                                       iterations,
-        const int                                       color)
+        const int                                       color,
+		const bool										stateful)
 {
     //------------------------------------------------
     const int STEP = superpixelstep;
@@ -1841,7 +1905,7 @@ void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelStep(
 	if(perturbseeds) DetectLabEdges(m_lvec, m_avec, m_bvec, m_width, m_height, edgemag);
 	GetLABXYSeeds_ForGivenStepSize(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, STEP, perturbseeds, edgemag);
 
-	PerformSuperpixelSLIC(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, klabels, STEP, edgemag, compactness, iterations);
+	PerformSuperpixelSLIC(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, klabels, STEP, edgemag, compactness, iterations, stateful);
 	numlabels = kseedsl.size();
 
 	int* nlabels = new int[sz];

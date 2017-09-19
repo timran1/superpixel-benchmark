@@ -38,15 +38,21 @@ echo "Comparig ${algo1} and ${algo2}"
 
 SUPERPIXELS=("200" "300" "400" "600" "800" "1000" "1200" "1400" "1600" "1800" "2000" "2400" "2800" "3200" "3600" "4000" "4600" "5200")
 
+rm -rf ../output/${algo1}
+rm -rf ../output/${algo2}
+rm ../output/${algo1}*
+rm ../output/${algo2}*
+
+
 for SUPERPIXEL in "${SUPERPIXELS[@]}"
 do
     # algo 1
-    ../bin/${algo1}_cli ../data/BSDS500/images/test/ --superpixels $SUPERPIXEL -o ../output/${algo1}/$SUPERPIXEL -w
+    ../bin/${algo1}_cli ../data/BSDS500/images/test/ --superpixels $SUPERPIXEL -o ../output/${algo1}/$SUPERPIXEL -w --iterations 3
     ../bin/eval_summary_cli ../output/${algo1}/$SUPERPIXEL ../data/BSDS500/images/test ../data/BSDS500/csv_groundTruth/test --append-file ../output/${algo1}.csv --vis
     find ../output/${algo1}/$SUPERPIXEL -type f -name '*[^summary|correlation|results].csv' -delete
     
     # algo 2
-    ../bin/${algo2}_cli ../data/BSDS500/images/test/ --superpixels $SUPERPIXEL -o ../output/${algo2}/$SUPERPIXEL -w
+    ../bin/${algo2}_cli ../data/BSDS500/images/test/ --superpixels $SUPERPIXEL -o ../output/${algo2}/$SUPERPIXEL -w --iterations 3
     ../bin/eval_summary_cli ../output/${algo2}/$SUPERPIXEL ../data/BSDS500/images/test ../data/BSDS500/csv_groundTruth/test --append-file ../output/${algo2}.csv --vis
     find ../output/${algo2}/$SUPERPIXEL -type f -name '*[^summary|correlation|results].csv' -delete
 done

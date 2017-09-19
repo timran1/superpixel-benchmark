@@ -69,7 +69,8 @@ public:
                 const float&                                   compactness,
                 const bool&                                     perturbseeds = false,
                 const int                                       iterations = 10,
-                const int                                       color = 1);
+                const int                                       color = 1,
+                const bool                                      stateful = false);
 	//============================================================================
 	// Superpixel segmentation for a given number of superpixels
 	//============================================================================
@@ -193,7 +194,8 @@ private:
 		const int&					STEP,
                 const vector<float>&                   edgemag,
 		const float&				m = 10.0,
-                const int                               iterations = 10);
+                const int                               iterations = 10,
+				const bool stateful = false);
         //============================================================================
 	// The main SLIC algorithm for generating 3D supervoxels
 	//============================================================================
