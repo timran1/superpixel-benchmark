@@ -897,7 +897,7 @@ void SLIC::PerformSuperpixelSLIC(
 
 					l_diff_sq = l_diff * l_diff;
 					a_diff_sq = a_diff * a_diff;
-					b_diff_sq = a_diff * a_diff;
+					b_diff_sq = b_diff * b_diff;
 
 					dist =			l_diff_sq + a_diff_sq + b_diff_sq;
 
