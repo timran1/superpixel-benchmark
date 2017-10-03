@@ -46,17 +46,23 @@ function list_include_item {
 # Main program...
 # Supposed to be run from within examples/.
 
-#TUPLES_TO_UPDATE_LIST=("customslic-1-tuple" "customslic-10-tuple")
+#tuple = <algo>-<iterations>-<tile-size>-tuple
+
+#TUPLES_TO_UPDATE_LIST=("customslic-3-16-tuple")
 
 SUPERPIXELS=("200" "300" "400" "600" "800" "1000" "1200" "1400" "1600" "1800" "2000" "2400" "2800" "3200" "3600" "4000" "4600" "5200")
-NUM_ITERATIONS_LIST=("1")
+NUM_ITERATIONS_LIST=("3")
+SQUARE_SIDES_LIST=("16" "32" "64")
 
 # Create algo_tuples list and print it.
-algo_tuples_list="slic-10"
-for NUM_ITERATIONS in "${NUM_ITERATIONS_LIST[@]}"
+algo_tuples_list=("slic-3")
+for SQUARE_SIDES in "${SQUARE_SIDES_LIST[@]}"
 do
-	algo_tuple="customslic-$NUM_ITERATIONS-tuple"
-	algo_tuples_list+=(${algo_tuple})
+	for NUM_ITERATIONS in "${NUM_ITERATIONS_LIST[@]}"
+	do
+		algo_tuple="customslic-$NUM_ITERATIONS-$SQUARE_SIDES-tuple"
+		algo_tuples_list+=(${algo_tuple})
+	done
 done
 echo "***Algo tuples:***"
 printf '%s\n' "${algo_tuples_list[@]}"
@@ -99,6 +105,7 @@ do
 
 	algo=${parts[0]}
 	iterations=${parts[1]}
+	tile_size=${parts[2]}
 
 	for SUPERPIXEL in "${SUPERPIXELS[@]}"
 	do
@@ -112,7 +119,8 @@ do
 
 			../bin/${algo}_cli ../data/BSDS500/images/test/ \
 				--superpixels $SUPERPIXEL -o ../output/${algo_tuple}/$SUPERPIXEL -w \
-				--iterations $iterations
+				--iterations $iterations \
+				--tile-size $tile_size
 
 		fi
 

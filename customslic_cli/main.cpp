@@ -79,7 +79,8 @@ int main(int argc, const char** argv) {
         ("wordy,w", "verbose/wordy/debug")
 		("camera", "Use camera feed")
 		("small-video", "Set camera frame size = 320x240")
-		("stateful", "Use state from previous frame");
+		("stateful", "Use state from previous frame")
+		("tile-size", boost::program_options::value<int>()->default_value(0), "Size of side of tile square");
         
     boost::program_options::positional_options_description positionals;
     positionals.add("input", 1);
@@ -143,6 +144,7 @@ int main(int argc, const char** argv) {
     int perturb_seeds_int = parameters["perturb-seeds"].as<int>();
     bool perturb_seeds = perturb_seeds_int > 0 ? true : false;
     int color_space = parameters["color-space"].as<int> ();
+    int tile_size = parameters["tile-size"].as<int> ();
     
     if (use_camera || use_video_file)
     {
@@ -198,6 +200,7 @@ int main(int argc, const char** argv) {
             args.color = color_space;
             args.stateful = stateful;
             args.numlabels = superpixels;
+            args.tile_square_side = tile_size;
 
             boost::timer timer;
             CUSTOMSLIC_OpenCV::computeSuperpixels_extended(image, labels, args);
@@ -251,6 +254,7 @@ int main(int argc, const char** argv) {
             args.color = color_space;
             args.stateful = false;
             args.numlabels = superpixels;
+            args.tile_square_side = tile_size;
 
             boost::timer timer;
             CUSTOMSLIC_OpenCV::computeSuperpixels_extended(image, labels, args);

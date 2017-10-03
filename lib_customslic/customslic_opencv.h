@@ -50,9 +50,9 @@ public:
      * \param[in] color_space color space to use, > 0 for Lab, 0 for RGB
      * \param[out] labels superpixel labels
      */
-    static void computeSuperpixels(SLIC &slic, const cv::Mat &image, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
+    static void computeSuperpixels(const cv::Mat &image, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
 
-    static void EnforceLabelConnectivity_extended (SLIC &slic, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
+    static void EnforceLabelConnectivity_extended (cv::Mat &labels, CUSTOMSLIC_ARGS& args);
 
     /*
         Extended superpixel handling

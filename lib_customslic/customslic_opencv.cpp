@@ -41,7 +41,7 @@
 #include "stdio.h"
 using namespace cv;
 
-void CUSTOMSLIC_OpenCV::computeSuperpixels(SLIC &slic, const cv::Mat &mat, cv::Mat &labels, CUSTOMSLIC_ARGS& args) {
+void CUSTOMSLIC_OpenCV::computeSuperpixels(const cv::Mat &mat, cv::Mat &labels, CUSTOMSLIC_ARGS& args) {
     
     // Convert matrix to unsigned int array.
     unsigned int* image = new unsigned int[mat.rows*mat.cols];
@@ -65,8 +65,8 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels(SLIC &slic, const cv::Mat &mat, cv::M
     }
 
     int* segmentation = new int[mat.rows*mat.cols];
-    int number_of_labels_desired = args.numlabels;
 
+    SLIC slic;
     slic.DoSuperpixelSegmentation_ForGivenSuperpixelStep(image, mat.cols, 
             mat.rows, segmentation, args);
 
@@ -77,10 +77,12 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels(SLIC &slic, const cv::Mat &mat, cv::M
             labels.at<int>(i, j) = segmentation[j + i*mat.cols];
         }
     }
+
+    EnforceLabelConnectivity_extended (labels, args);
+
 }
 
 void CUSTOMSLIC_OpenCV::EnforceLabelConnectivity_extended (
-		SLIC &slic,
 		cv::Mat &labels,
 		CUSTOMSLIC_ARGS& args
 		)
@@ -96,7 +98,7 @@ void CUSTOMSLIC_OpenCV::EnforceLabelConnectivity_extended (
 
 	int number_of_labels_desired = args.numlabels;
 
-	slic.EnforceLabelConnectivity_extended(segmentation, labels.cols,
+	SLIC::EnforceLabelConnectivity_extended(segmentation, labels.cols,
 			labels.rows, number_of_labels_desired, args.numlabels);
 
 	for (int i = 0; i < labels.rows; ++i) {
@@ -118,28 +120,38 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat, cv::Mat 
 
     if (!tiling)
     {
-        SLIC slic;
 
-        computeSuperpixels(slic, mat, labels, args);
+        computeSuperpixels(mat, labels, args);
 
-        EnforceLabelConnectivity_extended (slic, labels, args);
+        EnforceLabelConnectivity_extended (labels, args);
 
         unconnected_components = SuperpixelTools::relabelConnectedSuperpixels(labels);
     }
     else
     {
+
+        int square_side = args.tile_square_side;
+        int original_num_sps = args.numlabels;	//for backup.
+
+    	// We currently do not support for tiled cases.
     	args.stateful = false;
 
-        // tiling variables
-        int square_side = 64;
+    	args.one_sided_padding = false;
 
-        // pad image and labels to make full squares
+    	// Determine amount of padding required.
         cv::Mat padded_mat;
         int padding_c = square_side - (mat.cols % square_side);
+        int padding_c_left = args.one_sided_padding ? 0 : padding_c / 2;
         int padding_r = square_side - (mat.rows % square_side);
+        int padding_r_up = args.one_sided_padding ? 0 : padding_r / 2;
+
+        // Calculate total padding pixels:
+        int padding_pixels = padding_c * square_side + padding_r * mat.cols;
+
+        // pad image and labels to make full squares
         padded_mat.create(mat.rows + padding_r, mat.cols + padding_c, mat.type());
         padded_mat.setTo(cv::Scalar::all(0));
-        mat.copyTo (padded_mat (Rect (0, 0, mat.cols, mat.rows)));
+        mat.copyTo (padded_mat (Rect (padding_c_left, padding_r_up, mat.cols, mat.rows)));
 
         cv::Mat padded_labels (padded_mat.rows, padded_mat.cols, CV_32SC1);
 
@@ -163,19 +175,22 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat, cv::Mat 
         }
 
         int num_segments = img_segs.size ();
-        int num_sp_per_segment = args.numlabels / num_segments;
+
+        // Increase num_sp_per_segment to account for padding
+        float percentage_increase = float (padding_pixels) / (mat.cols * mat.rows);
+        int num_sp_per_segment = ceil ((float)args.numlabels / num_segments * (1+percentage_increase));
+
+        args.numlabels = num_sp_per_segment;	// restore this after tiling execution
 
         int num_sp_so_far = 0;
         for (int i = 0; i< num_segments; i++)
         {
             // compute region size for size of new array
             args.region_size = SuperpixelTools::computeRegionSizeFromSuperpixels(img_segs[i],
-                            num_sp_per_segment);
-
-            SLIC slic;
+            		args.numlabels);
 
             // the main super pixel algo
-            computeSuperpixels(slic, img_segs[i], labels_segs[i], args);
+            computeSuperpixels(img_segs[i], labels_segs[i], args);
 
             // TODO: Check if this can be moved out of the loop.
             int unconnected_components = SuperpixelTools::relabelConnectedSuperpixels(labels_segs[i]);
@@ -197,7 +212,12 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat, cv::Mat 
             }
         }
         // Extract out only the required region from labels
-        labels = padded_labels (Rect (0, 0, mat.cols, mat.rows));
+        labels = padded_labels (Rect (padding_c_left, padding_r_up, mat.cols, mat.rows));
+
+        args.numlabels = original_num_sps;
+
+        // Only we want to do this after main tiling loop
+        //EnforceLabelConnectivity_extended (labels, args);
     }
 
 }

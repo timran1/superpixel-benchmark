@@ -58,7 +58,7 @@ def plot_value (arrays, index, title, y_label, savepng):
     if savepng:
         plt.savefig("test.png")
 
-    plt.legend()
+    plt.legend(loc="lower right")
 
 
 plot_value (arrays_list, 1, "Boundry Recall", "REC", False)

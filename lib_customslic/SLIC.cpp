@@ -1553,7 +1553,7 @@ void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelStep(
 	GetLABXYSeeds_ForGivenStepSize(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, STEP, args.perturbseeds, edgemag);
 
 	PerformSuperpixelSLIC(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, klabels, args);
-	args.numlabels = kseedsl.size();
+	//args.numlabels = kseedsl.size();
 
 	// We want to do this out of this function.
 	if (false)

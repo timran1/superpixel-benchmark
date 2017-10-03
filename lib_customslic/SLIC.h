@@ -27,6 +27,7 @@ public:
 	 bool stateful;
      int iterations;
      int tile_square_side;
+     bool one_sided_padding;
 
      // outputs
 	 int numlabels;	// = superpixels in main.cpp
@@ -89,7 +90,7 @@ public:
 
 
 
-	void EnforceLabelConnectivity_extended (
+	static void EnforceLabelConnectivity_extended (
 			int*						klabels,//input labels that need to be corrected to remove stray labels
 			const int					width,
 			const int					height,
@@ -235,7 +236,7 @@ private:
 	//============================================================================
 	// Post-processing of SLIC segmentation, to avoid stray labels.
 	//============================================================================
-	void EnforceLabelConnectivity(
+	static void EnforceLabelConnectivity(
 		const int*					labels,
 		const int					width,
 		const int					height,
