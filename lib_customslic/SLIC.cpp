@@ -827,6 +827,23 @@ public:
 
 State state;
 
+//#define APPROXIMATION
+
+#ifdef APPROXIMATION
+inline void assign_fixed_vector (vector<fixedp>& vect, int size, float val)
+{
+	vect.resize (size);
+	for (int i=0; i<vect.size(); i++)
+	{
+		fixedp temp = fixedp (vect[0].integer, vect[0].fraction, val);
+		vect[i].fraction = temp.fraction;
+		vect[i].integer = temp.integer;
+		vect[i].value = temp.value;
+	}
+
+}
+#endif
+
 //===========================================================================
 ///	PerformSuperpixelSLIC
 ///
@@ -834,11 +851,11 @@ State state;
 /// over the entire image.
 //===========================================================================
 void SLIC::PerformSuperpixelSLIC(
-	vector<float>&				kseedsl,
-	vector<float>&				kseedsa,
-	vector<float>&				kseedsb,
-	vector<float>&				kseedsx,
-	vector<float>&				kseedsy,
+	vector<float>&				kseedsl_arg,
+	vector<float>&				kseedsa_arg,
+	vector<float>&				kseedsb_arg,
+	vector<float>&				kseedsx_arg,
+	vector<float>&				kseedsy_arg,
         int*&					klabels,
         const int&				STEP,
         const vector<float>&                   edgemag,
@@ -851,14 +868,14 @@ void SLIC::PerformSuperpixelSLIC(
 
 	if (stateful && state.is_init)
 	{
-		if (kseedsl.size() == state.superpixels)
+		if (kseedsl_arg.size() == state.superpixels)
 		{
 			// previous state is valid
-			kseedsl = state.kseedsl;
-			kseedsa = state.kseedsa;
-			kseedsb = state.kseedsb;
-			kseedsx = state.kseedsx;
-			kseedsy = state.kseedsy;
+			kseedsl_arg = state.kseedsl;
+			kseedsa_arg = state.kseedsa;
+			kseedsb_arg = state.kseedsb;
+			kseedsx_arg = state.kseedsx;
+			kseedsy_arg = state.kseedsy;
 
 			int sz = m_width*m_height;
 			for (int i=0; i<sz; i++)
@@ -870,13 +887,65 @@ void SLIC::PerformSuperpixelSLIC(
 		}
 	}
 
+
 	int sz = m_width*m_height;
-	const int numk = kseedsl.size();
+	const int numk = kseedsl_arg.size();
+
+
+#ifdef APPROXIMATION
+	//----------------
+	fixedp offset (32, 0, STEP);
+        //if(STEP < 8) offset = STEP*1.5;//to prevent a crash due to a very small step size
+	//----------------
+
+	vector<fixedp>				kseedsl (numk, fixedp (16, 16, 0)); for (int i=0; i<numk; i++)	kseedsl[i].convertTo (kseedsl_arg[i]);
+	vector<fixedp>				kseedsa (numk, fixedp (16, 16, 0)); for (int i=0; i<numk; i++)	kseedsa[i].convertTo (kseedsa_arg[i]);
+	vector<fixedp>				kseedsb (numk, fixedp (16, 16, 0)); for (int i=0; i<numk; i++)	kseedsb[i].convertTo (kseedsb_arg[i]);
+	vector<fixedp>				kseedsx (numk, fixedp (16, 16, 0)); for (int i=0; i<numk; i++)	kseedsx[i].convertTo (kseedsx_arg[i]);
+	vector<fixedp>				kseedsy (numk, fixedp (16, 16, 0)); for (int i=0; i<numk; i++)	kseedsy[i].convertTo (kseedsy_arg[i]);
+
+	fixedp one (2, 0, float(1));
+	fixedp zero (2, 0, float(0));
+
+	vector<fixedp> clustersize (numk, fixedp (16, 16, 0));
+	vector<fixedp> inv (numk, fixedp (16, 16, 0)); //to store 1/clustersize[k] values
+
+	vector<fixedp> sigmal (numk, fixedp (16, 16, 0));
+	vector<fixedp> sigmaa (numk, fixedp (16, 16, 0));
+	vector<fixedp> sigmab (numk, fixedp (16, 16, 0));
+	vector<fixedp> sigmax (numk, fixedp (16, 16, 0));
+	vector<fixedp> sigmay (numk, fixedp (16, 16, 0));
+	vector<fixedp> distvec (numk, fixedp (32, 0, FLT_MAX));
+
+	fixedp invwt (2, 16, float(1.0/((STEP/M)*(STEP/M))));
+
+	fixedp l(16,16,0), a(16,16,0), b(16,16,0);
+	fixedp dist(8,8,0);
+	fixedp distxy(8,8,0);
+
+	fixedp l_diff(16,16,0), a_diff(16,16,0), b_diff(16,16,0), x_diff(16,16,0), y_diff(16,16,0);
+	fixedp l_diff_sq(16,16,0), a_diff_sq(16,16,0), b_diff_sq(16,16,0), x_diff_sq(16,16,0), y_diff_sq(16,16,0);
+	fixedp temp_dist(16,16,0);
+
+	fixedp y1_limit(16,1,0), y2_limit(16,1,0), x1_limit(16,1,0), x2_limit(16,1,0);
+
+	fixedp temp_l(16,16,0), temp_a(16,16,0), temp_b(16,16,0), temp_x(16,0,0), temp_y(16,0,0);
+	fixedp temp_x_2(16,0,0), temp_y_2(16,0,0);
+#else
 	//----------------
 	int offset = STEP;
         //if(STEP < 8) offset = STEP*1.5;//to prevent a crash due to a very small step size
 	//----------------
-	
+
+	vector<float>&				kseedsl = kseedsl_arg;
+	vector<float>&				kseedsa = kseedsa_arg;
+	vector<float>&				kseedsb = kseedsb_arg;
+	vector<float>&				kseedsx = kseedsx_arg;
+	vector<float>&				kseedsy = kseedsy_arg;
+
+	float one = 1;
+	float zero = 0;
+
 	vector<float> clustersize(numk, 0);
 	vector<float> inv(numk, 0);//to store 1/clustersize[k] values
 
@@ -889,6 +958,21 @@ void SLIC::PerformSuperpixelSLIC(
         
 	float invwt = 1.0/((STEP/M)*(STEP/M));
 
+	float l, a, b;
+	float dist;
+	float distxy;
+
+	float l_diff, a_diff, b_diff, x_diff, y_diff;
+	float l_diff_sq, a_diff_sq, b_diff_sq, x_diff_sq, y_diff_sq;
+	float temp_dist;
+
+	float y1_limit, y2_limit, x1_limit, x2_limit;
+
+	float temp_l, temp_a, temp_b, temp_x, temp_y;
+	int temp_x_2, temp_y_2;
+#endif
+
+	int x1, y1, x2, y2;
 
 	bool use_pyramid_access = false;
 
@@ -900,26 +984,26 @@ void SLIC::PerformSuperpixelSLIC(
 		access_pattern [2] = 1;
 	}
 
-	int x1, y1, x2, y2;
-	float l, a, b;
-	float dist;
-	float distxy;
-
-	float l_diff, a_diff, b_diff, x_diff, y_diff;
-	float l_diff_sq, a_diff_sq, b_diff_sq, x_diff_sq, y_diff_sq;
-	float temp_dist;
-
 	for( int itr = 0; itr < iterations; itr++ )
 	{
 		ImageRasterScan image_scan (access_pattern[itr]);
 
+#ifdef APPROXIMATION
+		assign_fixed_vector (distvec, sz, FLT_MAX);
+#else
 		distvec.assign(sz, DBL_MAX);
+#endif
 		for( int n = 0; n < numk; n++ )
 		{
-                        y1 = max(0.0f,			kseedsy[n]-offset);
-                        y2 = min((float)m_height,	kseedsy[n]+offset);
-                        x1 = max(0.0f,			kseedsx[n]-offset);
-                        x2 = min((float)m_width,	kseedsx[n]+offset);
+			y1_limit = kseedsy[n]-offset;
+			y2_limit = kseedsy[n]+offset;
+			x1_limit = kseedsx[n]-offset;
+			x2_limit = kseedsx[n]+offset;
+
+			y1 = max(0.0f,				float(y1_limit));
+			y2 = min((float)m_height,	float(y2_limit));
+			x1 = max(0.0f,				float(x1_limit));
+			x2 = min((float)m_width,	float(x2_limit));
 
 			for( int y = y1; y < y2; y++ )
 			{
@@ -930,9 +1014,27 @@ void SLIC::PerformSuperpixelSLIC(
 					if (!image_scan.is_exact_index (i))
 						continue;
 
+#ifdef APPROXIMATION
+					l.convertTo (m_lvec[i]);
+					a.convertTo (m_avec[i]);
+					b.convertTo (m_bvec[i]);
+
+					temp_x.convertTo (kseedsx[n]);
+					temp_y.convertTo (kseedsy[n]);
+
+					temp_x_2.convertTo (x);
+					temp_y_2.convertTo (y);
+#else
 					l = m_lvec[i];
 					a = m_avec[i];
 					b = m_bvec[i];
+
+					temp_x = kseedsx[n];
+					temp_y = kseedsy[n];
+
+					temp_x_2 = x;
+					temp_y_2 = y;
+#endif
 
 					l_diff = (l - kseedsl[n]);
 					a_diff = (a - kseedsa[n]);
@@ -944,8 +1046,8 @@ void SLIC::PerformSuperpixelSLIC(
 
 					dist =			l_diff_sq + a_diff_sq + b_diff_sq;
 
-					x_diff = (x - kseedsx[n]);
-					y_diff = (y - kseedsy[n]);
+					x_diff = (temp_x_2 - temp_x);
+					y_diff = (temp_y_2 - temp_y);
 
 					x_diff_sq = x_diff * x_diff;
 					y_diff_sq = y_diff * y_diff;
@@ -968,13 +1070,21 @@ void SLIC::PerformSuperpixelSLIC(
 		// Recalculate the centroid and store in the seed values
 		//-----------------------------------------------------------------
 		//instead of reassigning memory on each iteration, just reset.
-	
-		sigmal.assign(numk, 0);
-		sigmaa.assign(numk, 0);
-		sigmab.assign(numk, 0);
-		sigmax.assign(numk, 0);
-		sigmay.assign(numk, 0);
-		clustersize.assign(numk, 0);
+#ifdef APPROXIMATION
+		assign_fixed_vector (sigmal, numk, 0);
+		assign_fixed_vector (sigmaa, numk, 0);
+		assign_fixed_vector (sigmab, numk, 0);
+		assign_fixed_vector (sigmax, numk, 0);
+		assign_fixed_vector (sigmay, numk, 0);
+		assign_fixed_vector (clustersize, numk, 0);
+#else
+		sigmal.assign(numk, zero);
+		sigmaa.assign(numk, zero);
+		sigmab.assign(numk, zero);
+		sigmax.assign(numk, zero);
+		sigmay.assign(numk, zero);
+		clustersize.assign(numk, zero);
+#endif
 		//------------------------------------
 		//edgesum.assign(numk, 0);
 		//------------------------------------
@@ -992,23 +1102,38 @@ void SLIC::PerformSuperpixelSLIC(
 					continue;
 				}
 
-				sigmal[klabels[ind]] = sigmal[klabels[ind]] + m_lvec[c + m_width*r];
-				sigmaa[klabels[ind]] = sigmaa[klabels[ind]] + m_avec[c + m_width*r];
-				sigmab[klabels[ind]] = sigmab[klabels[ind]] + m_bvec[c + m_width*r];
-				sigmax[klabels[ind]] = sigmax[klabels[ind]] + c;
-				sigmay[klabels[ind]] = sigmay[klabels[ind]] + r;
+#ifdef APPROXIMATION
+					temp_l.convertTo (m_lvec[c + m_width*r]);
+					temp_a.convertTo (m_avec[c + m_width*r]);
+					temp_b.convertTo (m_bvec[c + m_width*r]);
+					temp_x.convertTo (c);
+					temp_y.convertTo (r);
+
+#else
+					temp_l = m_lvec[c + m_width*r];
+					temp_a = m_avec[c + m_width*r];
+					temp_b = m_bvec[c + m_width*r];
+					temp_x = c;
+					temp_y = r;
+#endif
+
+				sigmal[klabels[ind]] = sigmal[klabels[ind]] + temp_l;
+				sigmaa[klabels[ind]] = sigmaa[klabels[ind]] + temp_a;
+				sigmab[klabels[ind]] = sigmab[klabels[ind]] + temp_b;
+				sigmax[klabels[ind]] = sigmax[klabels[ind]] + temp_x;
+				sigmay[klabels[ind]] = sigmay[klabels[ind]] + temp_y;
 				//------------------------------------
 				//edgesum[klabels[ind]] += edgemag[ind];
 				//------------------------------------
-				clustersize[klabels[ind]] = clustersize[klabels[ind]] + 1.0;
+				clustersize[klabels[ind]] = clustersize[klabels[ind]] + one;
 				ind++;
 			}
 		}}
 
 		{for( int k = 0; k < numk; k++ )
 		{
-			if( clustersize[k] <= 0 ) clustersize[k] = 1;
-			inv[k] = 1.0/clustersize[k];//computing inverse now to multiply, than divide later
+			if( clustersize[k] <= zero ) clustersize[k] = 1;
+			inv[k] = one/clustersize[k];//computing inverse now to multiply, than divide later
 		}}
 		
 		{for( int k = 0; k < numk; k++ )
@@ -1026,12 +1151,15 @@ void SLIC::PerformSuperpixelSLIC(
 
 	if (stateful)
 	{
-		state.kseedsl = kseedsl;
-		state.kseedsa = kseedsa;
-		state.kseedsb = kseedsb;
-		state.kseedsx = kseedsx;
-		state.kseedsy = kseedsy;
+#ifdef APPROXIMATION
 
+#else
+		state.kseedsl = kseedsl_arg;
+		state.kseedsa = kseedsa_arg;
+		state.kseedsb = kseedsb_arg;
+		state.kseedsx = kseedsx_arg;
+		state.kseedsy = kseedsy_arg;
+#endif
 		int sz = m_width*m_height;
 
 		if (state.klabels == NULL)
