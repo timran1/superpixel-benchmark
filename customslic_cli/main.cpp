@@ -75,6 +75,7 @@ int main(int argc, const char** argv) {
         ("csv,o", boost::program_options::value<std::string>()->default_value(""), "specify the output directory (default is ./output)")
         ("vis,v", boost::program_options::value<std::string>()->default_value(""), "visualize contours")
         ("prefix,x", boost::program_options::value<std::string>()->default_value(""), "output file prefix")
+		("video-file", boost::program_options::value<std::string>(), "path to video file")
         ("wordy,w", "verbose/wordy/debug")
 		("camera", "Use camera feed")
 		("small-video", "Set camera frame size = 320x240")
@@ -112,6 +113,12 @@ int main(int argc, const char** argv) {
         use_camera = true;
     }
 
+    bool use_video_file = false;
+    if (parameters.find("video-file") != parameters.end()) {
+        // We want a camera feed.
+    	use_video_file = true;
+    }
+
     bool small_video = false;
     if (parameters.find("small-video") != parameters.end()) {
         // We want a camera feed.
@@ -123,6 +130,7 @@ int main(int argc, const char** argv) {
         // We want a camera feed.
     	stateful = true;
     }
+
 
     bool wordy = false;
     if (parameters.find("wordy") != parameters.end()) {
@@ -136,12 +144,18 @@ int main(int argc, const char** argv) {
     bool perturb_seeds = perturb_seeds_int > 0 ? true : false;
     int color_space = parameters["color-space"].as<int> ();
     
-    if (use_camera)
+    if (use_camera || use_video_file)
     {
         int capture = 0; // Camera ID
 
         cv::VideoCapture cap;
-        if( !cap.open(capture) )
+        if (use_video_file)
+        {
+        	boost::filesystem::path video_file(parameters["video-file"].as<std::string>());
+        	std::cout << "Opening file: " << video_file.string() << std::endl;
+        	cap = cv::VideoCapture (video_file.string());
+        }
+        else if( !cap.open(capture) )
         {
             std::cout << "Could not initialize capturing..." << capture << std::endl;
             return -1;
