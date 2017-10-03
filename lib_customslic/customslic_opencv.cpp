@@ -41,9 +41,7 @@
 #include "stdio.h"
 using namespace cv;
 
-void CUSTOMSLIC_OpenCV::computeSuperpixels(const cv::Mat &mat, int region_size, 
-        double compactness, int iterations, bool perturb_seeds, 
-        int color_space, cv::Mat &labels, bool stateful) {
+void CUSTOMSLIC_OpenCV::computeSuperpixels(SLIC &slic, const cv::Mat &mat, cv::Mat &labels, CUSTOMSLIC_ARGS& args) {
     
     // Convert matrix to unsigned int array.
     unsigned int* image = new unsigned int[mat.rows*mat.cols];
@@ -66,14 +64,11 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels(const cv::Mat &mat, int region_size,
         }
     }
 
-    SLIC slic;
-
     int* segmentation = new int[mat.rows*mat.cols];
-    int number_of_labels = 0;
+    int number_of_labels_desired = args.numlabels;
 
     slic.DoSuperpixelSegmentation_ForGivenSuperpixelStep(image, mat.cols, 
-            mat.rows, segmentation, number_of_labels, region_size, 
-            compactness, perturb_seeds, iterations, color_space, stateful);
+            mat.rows, segmentation, args);
 
     // Convert labels.
     labels.create(mat.rows, mat.cols, CV_32SC1);
@@ -84,29 +79,57 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels(const cv::Mat &mat, int region_size,
     }
 }
 
+void CUSTOMSLIC_OpenCV::EnforceLabelConnectivity_extended (
+		SLIC &slic,
+		cv::Mat &labels,
+		CUSTOMSLIC_ARGS& args
+		)
+{
+	int sz = labels.cols*labels.rows;
+	int* segmentation = new int[sz];
 
-void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat, int region_size, 
-        double compactness, int iterations, bool perturb_seeds, 
-        int color_space, cv::Mat &labels, int superpixels, bool stateful) {
+	for (int i = 0; i < labels.rows; ++i) {
+		for (int j = 0; j < labels.cols; ++j) {
+			segmentation[j + i*labels.cols] = labels.at<int>(i, j);
+		}
+	}
+
+	int number_of_labels_desired = args.numlabels;
+
+	slic.EnforceLabelConnectivity_extended(segmentation, labels.cols,
+			labels.rows, number_of_labels_desired, args.numlabels);
+
+	for (int i = 0; i < labels.rows; ++i) {
+		for (int j = 0; j < labels.cols; ++j) {
+			labels.at<int>(i, j) = segmentation[j + i*labels.cols];
+		}
+	}
+
+	if(segmentation) delete [] segmentation;
+
+}
+
+
+void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat, cv::Mat &labels, CUSTOMSLIC_ARGS& args) {
     
-    bool tiling = false;
+    bool tiling = args.tile_square_side > 0;
 
     int unconnected_components = 0;
 
     if (!tiling)
     {
-        // update region size for size of new array
-        region_size = SuperpixelTools::computeRegionSizeFromSuperpixels(mat, 
-                        superpixels);
+        SLIC slic;
 
-        computeSuperpixels(mat, region_size, 
-            compactness, iterations, perturb_seeds, 
-            color_space, labels, stateful);
+        computeSuperpixels(slic, mat, labels, args);
+
+        EnforceLabelConnectivity_extended (slic, labels, args);
 
         unconnected_components = SuperpixelTools::relabelConnectedSuperpixels(labels);
     }
     else
     {
+    	args.stateful = false;
+
         // tiling variables
         int square_side = 64;
 
@@ -140,19 +163,19 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat, int regi
         }
 
         int num_segments = img_segs.size ();
-        int num_sp_per_segment = superpixels / num_segments;
+        int num_sp_per_segment = args.numlabels / num_segments;
 
         int num_sp_so_far = 0;
         for (int i = 0; i< num_segments; i++)
         {
             // compute region size for size of new array
-            region_size = SuperpixelTools::computeRegionSizeFromSuperpixels(img_segs[i], 
+            args.region_size = SuperpixelTools::computeRegionSizeFromSuperpixels(img_segs[i],
                             num_sp_per_segment);
 
+            SLIC slic;
+
             // the main super pixel algo
-            computeSuperpixels(img_segs[i], region_size, 
-                    compactness, iterations, perturb_seeds, 
-                    color_space, labels_segs[i], false);
+            computeSuperpixels(slic, img_segs[i], labels_segs[i], args);
 
             // TODO: Check if this can be moved out of the loop.
             int unconnected_components = SuperpixelTools::relabelConnectedSuperpixels(labels_segs[i]);

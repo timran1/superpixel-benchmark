@@ -856,17 +856,15 @@ void SLIC::PerformSuperpixelSLIC(
 	vector<float>&				kseedsb_arg,
 	vector<float>&				kseedsx_arg,
 	vector<float>&				kseedsy_arg,
-        int*&					klabels,
-        const int&				STEP,
-        const vector<float>&                   edgemag,
-	const float&				M,
-        const int                               iterations,
-		const bool stateful)
+	int*&						klabels,
+	CUSTOMSLIC_ARGS & args)
 {
-	if (!stateful)
+    const int STEP = args.region_size;
+
+	if (!args.stateful)
 		state.is_init = false;
 
-	if (stateful && state.is_init)
+	if (args.stateful && state.is_init)
 	{
 		if (kseedsl_arg.size() == state.superpixels)
 		{
@@ -956,7 +954,7 @@ void SLIC::PerformSuperpixelSLIC(
 	vector<float> sigmay(numk, 0);
 	vector<float> distvec(sz, DBL_MAX);
         
-	float invwt = 1.0/((STEP/M)*(STEP/M));
+	float invwt = 1.0/((STEP/args.compactness)*(STEP/args.compactness));
 
 	float l, a, b;
 	float dist;
@@ -976,7 +974,7 @@ void SLIC::PerformSuperpixelSLIC(
 
 	bool use_pyramid_access = false;
 
-	vector<int> access_pattern (iterations, 1);
+	vector<int> access_pattern (args.iterations, 1);
 	if (use_pyramid_access)
 	{
 		access_pattern [0] = 16;	// first iteration access of all pixels assigns initial seeds automatically.
@@ -984,7 +982,7 @@ void SLIC::PerformSuperpixelSLIC(
 		access_pattern [2] = 1;
 	}
 
-	for( int itr = 0; itr < iterations; itr++ )
+	for( int itr = 0; itr < args.iterations; itr++ )
 	{
 		ImageRasterScan image_scan (access_pattern[itr]);
 
@@ -1149,7 +1147,7 @@ void SLIC::PerformSuperpixelSLIC(
 		}}
 	}
 
-	if (stateful)
+	if (args.stateful)
 	{
 #ifdef APPROXIMATION
 
@@ -1172,317 +1170,6 @@ void SLIC::PerformSuperpixelSLIC(
 		state.superpixels = numk;
 	}
 }
-
-//===========================================================================
-///	Perform3DSupervoxelSLIC
-///
-///	Performs k mean segmentation. It is fast because it looks locally, not
-/// over the entire image.
-//===========================================================================
-void SLIC::Perform3DSupervoxelSLIC(
-	vector<float>&				kseedsl,
-	vector<float>&				kseedsa,
-	vector<float>&				kseedsb,
-	vector<float>&				kseedsox,
-	vector<float>&				kseedsoy,
-        vector<float>&				kseedsx,
-	vector<float>&				kseedsy,  
-        vector<float>&				kseedsz,   
-        int*&					klabels,
-        const int&				STEP,
-        const vector<float>&                   edgemag,
-	const float&				M,
-        const int                               iterations)
-{
-	int sz = m_width*m_height;
-	const int numk = kseedsl.size();
-	//----------------
-	int offset = STEP;
-        //if(STEP < 8) offset = STEP*1.5;//to prevent a crash due to a very small step size
-	//----------------
-	
-	vector<float> clustersize(numk, 0);
-	vector<float> inv(numk, 0);//to store 1/clustersize[k] values
-
-	vector<float> sigmal(numk, 0);
-	vector<float> sigmaa(numk, 0);
-	vector<float> sigmab(numk, 0);
-        vector<float> sigmaox(numk, 0);
-	vector<float> sigmaoy(numk, 0);
-	vector<float> sigmax(numk, 0);
-	vector<float> sigmay(numk, 0);
-        vector<float> sigmaz(numk, 0);
-	vector<float> distvec(sz, DBL_MAX);
-
-	float invwt = 1.0/((STEP/M)*(STEP/M));
-    
-	int x1, y1, x2, y2;
-	float l, a, b;
-	float dist;
-//	float distxy;
-        float distxyz;
-        float widthx, widthy;
-	for( int itr = 0; itr < iterations; itr++ )
-	{
-		distvec.assign(sz, DBL_MAX);
-		for( int n = 0; n < numk; n++ )
-		{
-                        y1 = max(0.0f,			kseedsoy[n]-offset);
-                        y2 = min((float)m_height,	kseedsoy[n]+offset);
-                        x1 = max(0.0f,			kseedsox[n]-offset);
-                        x2 = min((float)m_width,	kseedsox[n]+offset);
-                        
-//                        widthx = abs(m_xvec[y1*m_width + x1] - m_xvec[y1*m_width + x2 - 1]);
-//                        widthy = abs(m_yvec[y1*m_width + x1] - m_yvec[(y2 - 1)*m_width + x1]);
-//                        
-//                        invwt = 1.0/((widthx/M)*(widthy/M));
-                        
-			for( int y = y1; y < y2; y++ )
-			{
-				for( int x = x1; x < x2; x++ )
-				{
-					int i = y*m_width + x;
-
-					l = m_lvec[i];
-					a = m_avec[i];
-					b = m_bvec[i];
-
-					dist =	(l - kseedsl[n])*(l - kseedsl[n]) +
-						(a - kseedsa[n])*(a - kseedsa[n]) +
-						(b - kseedsb[n])*(b - kseedsb[n]);
-                    
-//                    distxy =        (x - kseedsox[n])*(x - kseedsox[n]) + 
-//                                    (y - kseedsoy[n])*(y - kseedsoy[n]) +
-//                                    (m_zvec[i] - kseedsx[n])*(m_zvec[i] - kseedsx[n]);
-//                    
-//                    dist += distxy*invwt;
-                    
-					distxyz =	(m_xvec[i] - kseedsx[n])*(m_xvec[i] - kseedsx[n]) +
-							(m_yvec[i] - kseedsy[n])*(m_yvec[i] - kseedsy[n]) +
-                                                        (m_zvec[i] - kseedsz[n])*(m_zvec[i] - kseedsz[n]);
-					
-					//------------------------------------------------------------------------
-					dist += distxyz*invwt;//dist = sqrt(dist) + sqrt(distxy*invwt);//this is more exact
-					//------------------------------------------------------------------------
-                    
-                                        assert(i < sz);
-                                        assert(!std::isinf(dist));
-                                        
-					if( dist < distvec[i])
-					{
-						distvec[i] = dist;
-						klabels[i]  = n;
-					}
-				}
-			}
-		}
-		//-----------------------------------------------------------------
-		// Recalculate the centroid and store in the seed values
-		//-----------------------------------------------------------------
-		//instead of reassigning memory on each iteration, just reset.
-	
-		sigmal.assign(numk, 0);
-		sigmaa.assign(numk, 0);
-		sigmab.assign(numk, 0);
-                sigmaox.assign(numk, 0);
-		sigmaoy.assign(numk, 0);
-		sigmax.assign(numk, 0);
-		sigmay.assign(numk, 0);
-                sigmaz.assign(numk, 0);
-		clustersize.assign(numk, 0);
-		//------------------------------------
-		//edgesum.assign(numk, 0);
-		//------------------------------------
-
-		{int ind(0);
-		for( int r = 0; r < m_height; r++ )
-		{
-			for( int c = 0; c < m_width; c++ )
-			{
-                                assert(ind < m_width*m_height);
-                                assert(klabels[ind] >= 0);
-                                assert(klabels[ind] < numk);
-                                
-                                sigmal[klabels[ind]] += m_lvec[ind];
-                                sigmaa[klabels[ind]] += m_avec[ind];
-                                sigmab[klabels[ind]] += m_bvec[ind];
-                                sigmaox[klabels[ind]] += c;
-                                sigmaoy[klabels[ind]] += r;
-                                sigmax[klabels[ind]] += m_xvec[ind];
-                                sigmay[klabels[ind]] += m_yvec[ind];
-                                sigmaz[klabels[ind]] += m_zvec[ind];
-                                //------------------------------------
-                                //edgesum[klabels[ind]] += edgemag[ind];
-                                //------------------------------------
-                                clustersize[klabels[ind]] += 1.0;
-                                ind++;
-			}
-		}}
-
-		{for( int k = 0; k < numk; k++ )
-		{
-			if( clustersize[k] <= 0 ) clustersize[k] = 1;
-			inv[k] = 1.0/clustersize[k];//computing inverse now to multiply, than divide later
-		}}
-		
-		{for( int k = 0; k < numk; k++ )
-		{
-			kseedsl[k] = sigmal[k]*inv[k];
-			kseedsa[k] = sigmaa[k]*inv[k];
-			kseedsb[k] = sigmab[k]*inv[k];
-                        kseedsox[k] = sigmaox[k]*inv[k];
-			kseedsoy[k] = sigmaoy[k]*inv[k];
-			kseedsx[k] = sigmax[k]*inv[k];
-			kseedsy[k] = sigmay[k]*inv[k];
-                        kseedsz[k] = sigmaz[k]*inv[k];
-			//------------------------------------
-			//edgesum[k] *= inv[k];
-			//------------------------------------
-		}}
-	}
-}
-
-//===========================================================================
-///	PerformSupervoxelSLIC
-///
-///	Performs k mean segmentation. It is fast because it searches locally, not
-/// over the entire image.
-//===========================================================================
-void SLIC::PerformSupervoxelSLIC(
-	vector<float>&				kseedsl,
-	vector<float>&				kseedsa,
-	vector<float>&				kseedsb,
-	vector<float>&				kseedsx,
-	vector<float>&				kseedsy,
-	vector<float>&				kseedsz,
-        int**&					klabels,
-        const int&				STEP,
-	const float&				compactness)
-{
-	int sz = m_width*m_height;
-	const int numk = kseedsl.size();
-        //int numitr(0);
-
-	//----------------
-	int offset = STEP;
-        //if(STEP < 8) offset = STEP*1.5;//to prevent a crash due to a very small step size
-	//----------------
-
-	vector<float> clustersize(numk, 0);
-	vector<float> inv(numk, 0);//to store 1/clustersize[k] values
-
-	vector<float> sigmal(numk, 0);
-	vector<float> sigmaa(numk, 0);
-	vector<float> sigmab(numk, 0);
-	vector<float> sigmax(numk, 0);
-	vector<float> sigmay(numk, 0);
-	vector<float> sigmaz(numk, 0);
-
-	vector< float > initfloat(sz, DBL_MAX);
-	vector< vector<float> > distvec(m_depth, initfloat);
-	//vector<float> distvec(sz, DBL_MAX);
-
-	float invwt = 1.0/((STEP/compactness)*(STEP/compactness));//compactness = 20.0 is usually good.
-
-	int x1, y1, x2, y2, z1, z2;
-	float l, a, b;
-	float dist;
-	float distxyz;
-	for( int itr = 0; itr < 5; itr++ )
-	{
-		distvec.assign(m_depth, initfloat);
-		for( int n = 0; n < numk; n++ )
-		{
-                        y1 = max(0.0f,			kseedsy[n]-offset);
-                        y2 = min((float)m_height,	kseedsy[n]+offset);
-                        x1 = max(0.0f,			kseedsx[n]-offset);
-                        x2 = min((float)m_width,	kseedsx[n]+offset);
-                        z1 = max(0.0f,			kseedsz[n]-offset);
-                        z2 = min((float)m_depth,	kseedsz[n]+offset);
-
-
-			for( int z = z1; z < z2; z++ )
-			{
-				for( int y = y1; y < y2; y++ )
-				{
-					for( int x = x1; x < x2; x++ )
-					{
-						int i = y*m_width + x;
-
-						l = m_lvecvec[z][i];
-						a = m_avecvec[z][i];
-						b = m_bvecvec[z][i];
-
-						dist =			(l - kseedsl[n])*(l - kseedsl[n]) +
-										(a - kseedsa[n])*(a - kseedsa[n]) +
-										(b - kseedsb[n])*(b - kseedsb[n]);
-
-						distxyz =		(x - kseedsx[n])*(x - kseedsx[n]) +
-										(y - kseedsy[n])*(y - kseedsy[n]) +
-										(z - kseedsz[n])*(z - kseedsz[n]);
-						//------------------------------------------------------------------------
-						dist += distxyz*invwt;
-						//------------------------------------------------------------------------
-						if( dist < distvec[z][i] )
-						{
-							distvec[z][i] = dist;
-							klabels[z][i]  = n;
-						}
-					}
-				}
-			}
-		}
-		//-----------------------------------------------------------------
-		// Recalculate the centroid and store in the seed values
-		//-----------------------------------------------------------------
-		//instead of reassigning memory on each iteration, just reset.
-	
-		sigmal.assign(numk, 0);
-		sigmaa.assign(numk, 0);
-		sigmab.assign(numk, 0);
-		sigmax.assign(numk, 0);
-		sigmay.assign(numk, 0);
-		sigmaz.assign(numk, 0);
-		clustersize.assign(numk, 0);
-
-		for( int d = 0; d < m_depth; d++  )
-		{
-			int ind(0);
-			for( int r = 0; r < m_height; r++ )
-			{
-				for( int c = 0; c < m_width; c++ )
-				{
-					sigmal[klabels[d][ind]] += m_lvecvec[d][ind];
-					sigmaa[klabels[d][ind]] += m_avecvec[d][ind];
-					sigmab[klabels[d][ind]] += m_bvecvec[d][ind];
-					sigmax[klabels[d][ind]] += c;
-					sigmay[klabels[d][ind]] += r;
-					sigmaz[klabels[d][ind]] += d;
-
-					clustersize[klabels[d][ind]] += 1.0;
-					ind++;
-				}
-			}
-		}
-
-		{for( int k = 0; k < numk; k++ )
-		{
-			if( clustersize[k] <= 0 ) clustersize[k] = 1;
-			inv[k] = 1.0/clustersize[k];//computing inverse now to multiply, than divide later
-		}}
-		
-		{for( int k = 0; k < numk; k++ )
-		{
-			kseedsl[k] = sigmal[k]*inv[k];
-			kseedsa[k] = sigmaa[k]*inv[k];
-			kseedsb[k] = sigmab[k]*inv[k];
-			kseedsx[k] = sigmax[k]*inv[k];
-			kseedsy[k] = sigmay[k]*inv[k];
-			kseedsz[k] = sigmaz[k]*inv[k];
-		}}
-	}
-}
-
 
 //===========================================================================
 ///	SaveSuperpixelLabels
@@ -1821,183 +1508,15 @@ void SLIC::EnforceSupervoxelLabelConnectivity(
 ///
 /// The labels can be saved if needed using SaveSuperpixelLabels()
 //===========================================================================
-void SLIC::DoDepthSuperpixelSegmentation_ForGivenSeedProbabilities(
-        const unsigned int*                             ubuff,
-        const unsigned short*                           depth,
-	const int					width,
-	const int					height,
-	int*&						klabels,
-	int&						numlabels,
-        const float                                     variance,
-        const int                                       superpixels,
-        const float&                                   compactness,
-        const bool&                                     perturbseeds,
-        const int                                       iterations,
-        const int                                       color)
-{
-    //--------------------------------------------------
-    const int superpixelsize = 0.5+float(width*height)/float(superpixels);
-    //--------------------------------------------------
-    
-    //------------------------------------------------
-    const int STEP = sqrt(float(superpixelsize))+0.5;
-    //------------------------------------------------
-        vector<float> kseedsl(0);
-	vector<float> kseedsa(0);
-	vector<float> kseedsb(0);
-	vector<float> kseedsx(0);
-	vector<float> kseedsy(0);
-
-	//--------------------------------------------------
-	m_width  = width;
-	m_height = height;
-	int sz = m_width*m_height;
-	//klabels.resize( sz, -1 );
-	//--------------------------------------------------
-	klabels = new int[sz];
-	for( int s = 0; s < sz; s++ ) klabels[s] = -1;
-    //--------------------------------------------------
-    if(color > 0)//LAB, the default option
-    {
-        DoRGBtoLABConversion(ubuff, m_lvec, m_avec, m_bvec);
-    }
-    else//RGB
-    {
-        m_lvec = new float[sz]; m_avec = new float[sz]; m_bvec = new float[sz];
-        for( int i = 0; i < sz; i++ )
-        {
-                m_lvec[i] = ubuff[i] >> 16 & 0xff;
-                m_avec[i] = ubuff[i] >>  8 & 0xff;
-                m_bvec[i] = ubuff[i]       & 0xff;
-        }
-    }
-	//--------------------------------------------------
-	vector<float> edgemag(0);
-	if(perturbseeds) DetectLabEdges(m_lvec, m_avec, m_bvec, m_width, m_height, edgemag);
-	GetLABXYSeeds_ForGivenSeedProbabilities(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, variance, depth, superpixels, perturbseeds, edgemag);
-
-	PerformSuperpixelSLIC(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, klabels, STEP, edgemag, compactness, iterations);
-	numlabels = kseedsl.size();
-
-	int* nlabels = new int[sz];
-	EnforceLabelConnectivity(klabels, m_width, m_height, nlabels, numlabels, float(sz)/float(STEP*STEP));
-	{for(int i = 0; i < sz; i++ ) klabels[i] = nlabels[i];}
-	if(nlabels) delete [] nlabels;
-}
-
-//===========================================================================
-///	DoSuperpixelSegmentation_ForGivenSuperpixelSize
-///
-/// The input parameter ubuff conains RGB values in a 32-bit unsigned integers
-/// as follows:
-///
-/// [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]
-///
-///        Nothing              R                 G                  B
-///
-/// The RGB values are accessed from (and packed into) the unsigned integers
-/// using bitwise operators as can be seen in the function DoRGBtoLABConversion().
-///
-/// compactness value depends on the input pixels values. For instance, if
-/// the input is greyscale with values ranging from 0-100, then a compactness
-/// value of 20.0 would give good results. A greater value will make the
-/// superpixels more compact while a smaller value would make them more uneven.
-///
-/// The labels can be saved if needed using SaveSuperpixelLabels()
-//===========================================================================
-void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelSize(
-        const unsigned int*                             ubuff,
-	const int					width,
-	const int					height,
-	int*&						klabels,
-	int&						numlabels,
-        const int&					superpixelsize,
-        const float&                                   compactness,
-        const bool&                                     perturbseeds,
-        const int                                       iterations,
-        const int                                       color)
-{
-    //------------------------------------------------
-    const int STEP = sqrt(float(superpixelsize))+0.5;
-    //------------------------------------------------
-	vector<float> kseedsl(0);
-	vector<float> kseedsa(0);
-	vector<float> kseedsb(0);
-	vector<float> kseedsx(0);
-	vector<float> kseedsy(0);
-
-	//--------------------------------------------------
-	m_width  = width;
-	m_height = height;
-	int sz = m_width*m_height;
-	//klabels.resize( sz, -1 );
-	//--------------------------------------------------
-	klabels = new int[sz];
-	for( int s = 0; s < sz; s++ ) klabels[s] = -1;
-    //--------------------------------------------------
-    if(color > 0)//LAB, the default option
-    {
-        DoRGBtoLABConversion(ubuff, m_lvec, m_avec, m_bvec);
-    }
-    else//RGB
-    {
-        m_lvec = new float[sz]; m_avec = new float[sz]; m_bvec = new float[sz];
-        for( int i = 0; i < sz; i++ )
-        {
-                m_lvec[i] = ubuff[i] >> 16 & 0xff;
-                m_avec[i] = ubuff[i] >>  8 & 0xff;
-                m_bvec[i] = ubuff[i]       & 0xff;
-        }
-    }
-	//--------------------------------------------------
-	vector<float> edgemag(0);
-	if(perturbseeds) DetectLabEdges(m_lvec, m_avec, m_bvec, m_width, m_height, edgemag);
-	GetLABXYSeeds_ForGivenStepSize(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, STEP, perturbseeds, edgemag);
-
-	PerformSuperpixelSLIC(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, klabels, STEP, edgemag, compactness, iterations);
-	numlabels = kseedsl.size();
-
-	int* nlabels = new int[sz];
-	EnforceLabelConnectivity(klabels, m_width, m_height, nlabels, numlabels, float(sz)/float(STEP*STEP));
-	{for(int i = 0; i < sz; i++ ) klabels[i] = nlabels[i];}
-	if(nlabels) delete [] nlabels;
-}
-
-//===========================================================================
-///	DoSuperpixelSegmentation_ForGivenSuperpixelSize
-///
-/// The input parameter ubuff conains RGB values in a 32-bit unsigned integers
-/// as follows:
-///
-/// [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]
-///
-///        Nothing              R                 G                  B
-///
-/// The RGB values are accessed from (and packed into) the unsigned integers
-/// using bitwise operators as can be seen in the function DoRGBtoLABConversion().
-///
-/// compactness value depends on the input pixels values. For instance, if
-/// the input is greyscale with values ranging from 0-100, then a compactness
-/// value of 20.0 would give good results. A greater value will make the
-/// superpixels more compact while a smaller value would make them more uneven.
-///
-/// The labels can be saved if needed using SaveSuperpixelLabels()
-//===========================================================================
 void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelStep(
         const unsigned int*                             ubuff,
-	const int					width,
-	const int					height,
-	int*&						klabels,
-	int&						numlabels,
-        const int&					superpixelstep,
-        const float&                                   compactness,
-        const bool&                                     perturbseeds,
-        const int                                       iterations,
-        const int                                       color,
-		const bool										stateful)
+		const int					width,
+		const int					height,
+		int*&						klabels,
+		CUSTOMSLIC_ARGS & 								args)
 {
     //------------------------------------------------
-    const int STEP = superpixelstep;
+    const int STEP = args.region_size;
     //------------------------------------------------
 	vector<float> kseedsl(0);
 	vector<float> kseedsa(0);
@@ -2014,7 +1533,7 @@ void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelStep(
 	klabels = new int[sz];
 	for( int s = 0; s < sz; s++ ) klabels[s] = -1;
     //--------------------------------------------------
-    if(color > 0)//LAB, the default option
+    if(args.color > 0)//LAB, the default option
     {
         DoRGBtoLABConversion(ubuff, m_lvec, m_avec, m_bvec);
     }
@@ -2030,372 +1549,34 @@ void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelStep(
     }
 	//--------------------------------------------------
 	vector<float> edgemag(0);
-	if(perturbseeds) DetectLabEdges(m_lvec, m_avec, m_bvec, m_width, m_height, edgemag);
-	GetLABXYSeeds_ForGivenStepSize(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, STEP, perturbseeds, edgemag);
+	if(args.perturbseeds) DetectLabEdges(m_lvec, m_avec, m_bvec, m_width, m_height, edgemag);
+	GetLABXYSeeds_ForGivenStepSize(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, STEP, args.perturbseeds, edgemag);
 
-	PerformSuperpixelSLIC(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, klabels, STEP, edgemag, compactness, iterations, stateful);
-	numlabels = kseedsl.size();
+	PerformSuperpixelSLIC(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, klabels, args);
+	args.numlabels = kseedsl.size();
 
-	int* nlabels = new int[sz];
-	EnforceLabelConnectivity(klabels, m_width, m_height, nlabels, numlabels, float(sz)/float(STEP*STEP));
-	{for(int i = 0; i < sz; i++ ) klabels[i] = nlabels[i];}
-	if(nlabels) delete [] nlabels;
-}
-
-//===========================================================================
-///	Do3DSupervixelSegmentation_ForGivenSuperpixelSize
-///
-/// This is the extension of SLIC to 3D supervoxels. In addition to the color
-/// image, the input includes the x, y and z coordinates in the world
-/// coordinate system.
-///
-/// The input parameter ubuff conains RGB values in a 32-bit unsigned integers
-/// as follows:
-///
-/// [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]
-///
-///        Nothing              R                 G                  B
-///
-/// The RGB values are accessed from (and packed into) the unsigned integers
-/// using bitwise operators as can be seen in the function DoRGBtoLABConversion().
-///
-/// compactness value depends on the input pixels values. For instance, if
-/// the input is greyscale with values ranging from 0-100, then a compactness
-/// value of 20.0 would give good results. A greater value will make the
-/// superpixels more compact while a smaller value would make them more uneven.
-///
-/// The labels can be saved if needed using SaveSuperpixelLabels()
-//===========================================================================
-void SLIC::Do3DSupervoxelSegmentation_ForGivenSupervoxelSize(
-        const unsigned int*                             ubuff,
-        const float*                                   x,
-        const float*                                   y,
-        const float*                                   z,
-	const int					width,
-	const int					height,
-	int*&						klabels,
-	int&						numlabels,
-        const int&					superpixelsize,
-        const float&                                   compactness,
-        const bool&                                     perturbseeds,
-        const int                                       iterations,
-        const int                                       color)
-{
-    //------------------------------------------------
-    const int STEP = sqrt(float(superpixelsize))+0.5;
-    //------------------------------------------------
-	vector<float> kseedsl(0);
-	vector<float> kseedsa(0);
-	vector<float> kseedsb(0);
-    vector<float> kseedsox(0);
-	vector<float> kseedsoy(0);
-	vector<float> kseedsx(0);
-	vector<float> kseedsy(0);
-    vector<float> kseedsz(0);
-    
-	//--------------------------------------------------
-	m_width  = width;
-	m_height = height;
-	int sz = m_width*m_height;
-	//klabels.resize( sz, -1 );
-	//--------------------------------------------------
-	klabels = new int[sz];
-	for( int s = 0; s < sz; s++ ) klabels[s] = -1;
-    //--------------------------------------------------
-    if(color > 0)//LAB, the default option
-    {
-        DoRGBtoLABConversion(ubuff, m_lvec, m_avec, m_bvec);
-    }
-    else//RGB
-    {
-        m_lvec = new float[sz]; m_avec = new float[sz]; m_bvec = new float[sz];
-        for( int i = 0; i < sz; i++ )
-        {
-                m_lvec[i] = ubuff[i] >> 16 & 0xff;
-                m_avec[i] = ubuff[i] >>  8 & 0xff;
-                m_bvec[i] = ubuff[i]       & 0xff;
-        }
-    }
-    
-    m_xvec = new float[sz];
-    m_yvec = new float[sz];
-    m_zvec = new float[sz];
-    for( int i = 0; i < sz; i++ )
-    {
-        m_xvec[i] = x[i];
-        m_yvec[i] = y[i];
-        m_zvec[i] = z[i];
-    }
-    
-	//--------------------------------------------------
-	vector<float> edgemag(0);
-	if(perturbseeds) DetectLabEdges(m_lvec, m_avec, m_bvec, m_width, m_height, edgemag);
-	GetLABXYZSeeds_ForGivenStepSize(kseedsl, kseedsa, kseedsb, kseedsox, kseedsoy, kseedsx, kseedsy, kseedsz, STEP, perturbseeds, edgemag);
-
-	Perform3DSupervoxelSLIC(kseedsl, kseedsa, kseedsb, kseedsox, kseedsoy, kseedsx, kseedsy, kseedsz, klabels, STEP, edgemag, compactness, iterations);
-	numlabels = kseedsl.size();
-
-	int* nlabels = new int[sz];
-	EnforceLabelConnectivity(klabels, m_width, m_height, nlabels, numlabels, float(sz)/float(STEP*STEP));
-	{for(int i = 0; i < sz; i++ ) klabels[i] = nlabels[i];}
-	if(nlabels) delete [] nlabels;
-}
-
-//===========================================================================
-///	Do3DSupervixelSegmentation_ForGivenSuperpixelSize
-///
-/// This is the extension of SLIC to 3D supervoxels. In addition to the color
-/// image, the input includes the x, y and z coordinates in the world
-/// coordinate system.
-///
-/// The input parameter ubuff conains RGB values in a 32-bit unsigned integers
-/// as follows:
-///
-/// [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]
-///
-///        Nothing              R                 G                  B
-///
-/// The RGB values are accessed from (and packed into) the unsigned integers
-/// using bitwise operators as can be seen in the function DoRGBtoLABConversion().
-///
-/// compactness value depends on the input pixels values. For instance, if
-/// the input is greyscale with values ranging from 0-100, then a compactness
-/// value of 20.0 would give good results. A greater value will make the
-/// superpixels more compact while a smaller value would make them more uneven.
-///
-/// The labels can be saved if needed using SaveSuperpixelLabels()
-//===========================================================================
-void SLIC::Do3DSupervoxelSegmentation_ForGivenSupervoxelStep(
-        const unsigned int*                             ubuff,
-        const float*                                   x,
-        const float*                                   y,
-        const float*                                   z,
-	const int					width,
-	const int					height,
-	int*&						klabels,
-	int&						numlabels,
-        const int&					superpixelstep,
-        const float&                                   compactness,
-        const bool&                                     perturbseeds,
-        const int                                       iterations,
-        const int                                       color)
-{
-    //------------------------------------------------
-    const int STEP = superpixelstep;
-    //------------------------------------------------
-	vector<float> kseedsl(0);
-	vector<float> kseedsa(0);
-	vector<float> kseedsb(0);
-    vector<float> kseedsox(0);
-	vector<float> kseedsoy(0);
-	vector<float> kseedsx(0);
-	vector<float> kseedsy(0);
-    vector<float> kseedsz(0);
-    
-	//--------------------------------------------------
-	m_width  = width;
-	m_height = height;
-	int sz = m_width*m_height;
-	//klabels.resize( sz, -1 );
-	//--------------------------------------------------
-	klabels = new int[sz];
-	for( int s = 0; s < sz; s++ ) klabels[s] = -1;
-    //--------------------------------------------------
-    if(color > 0)//LAB, the default option
-    {
-        DoRGBtoLABConversion(ubuff, m_lvec, m_avec, m_bvec);
-    }
-    else//RGB
-    {
-        m_lvec = new float[sz]; m_avec = new float[sz]; m_bvec = new float[sz];
-        for( int i = 0; i < sz; i++ )
-        {
-                m_lvec[i] = ubuff[i] >> 16 & 0xff;
-                m_avec[i] = ubuff[i] >>  8 & 0xff;
-                m_bvec[i] = ubuff[i]       & 0xff;
-        }
-    }
-    
-    m_xvec = new float[sz];
-    m_yvec = new float[sz];
-    m_zvec = new float[sz];
-    for( int i = 0; i < sz; i++ )
-    {
-        m_xvec[i] = x[i];
-        m_yvec[i] = y[i];
-        m_zvec[i] = z[i];
-    }
-    
-	//--------------------------------------------------
-	vector<float> edgemag(0);
-	if(perturbseeds) DetectLabEdges(m_lvec, m_avec, m_bvec, m_width, m_height, edgemag);
-	GetLABXYZSeeds_ForGivenStepSize(kseedsl, kseedsa, kseedsb, kseedsox, kseedsoy, kseedsx, kseedsy, kseedsz, STEP, perturbseeds, edgemag);
-
-	Perform3DSupervoxelSLIC(kseedsl, kseedsa, kseedsb, kseedsox, kseedsoy, kseedsx, kseedsy, kseedsz, klabels, STEP, edgemag, compactness, iterations);
-	numlabels = kseedsl.size();
-
-	int* nlabels = new int[sz];
-	EnforceLabelConnectivity(klabels, m_width, m_height, nlabels, numlabels, float(sz)/float(STEP*STEP));
-	{for(int i = 0; i < sz; i++ ) klabels[i] = nlabels[i];}
-	if(nlabels) delete [] nlabels;
-}
-
-//===========================================================================
-///	DoSuperpixelSegmentation_ForGivenNumberOfSuperpixels
-///
-/// The input parameter ubuff conains RGB values in a 32-bit unsigned integers
-/// as follows:
-///
-/// [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]
-///
-///        Nothing              R                 G                  B
-///
-/// The RGB values are accessed from (and packed into) the unsigned integers
-/// using bitwise operators as can be seen in the function DoRGBtoLABConversion().
-///
-/// compactness value depends on the input pixels values. For instance, if
-/// the input is greyscale with values ranging from 0-100, then a compactness
-/// value of 20.0 would give good results. A greater value will make the
-/// superpixels more compact while a smaller value would make them more uneven.
-///
-/// The labels can be saved if needed using SaveSuperpixelLabels()
-//===========================================================================
-void SLIC::DoSuperpixelSegmentation_ForGivenNumberOfSuperpixels(
-        const unsigned int*                             ubuff,
-	const int					width,
-	const int					height,
-	int*&						klabels,
-	int&						numlabels,
-	const int&					K,//required number of superpixels
-        const float&                                   compactness,
-        const bool&                                     perturbseeds,
-        const int                                       iterations,
-        const int                                       color)
-{
-    const int superpixelsize = 0.5+float(width*height)/float(K);
-    DoSuperpixelSegmentation_ForGivenSuperpixelSize(ubuff,width,height,klabels,numlabels,superpixelsize,compactness,perturbseeds,iterations,color);
-}
-
-//===========================================================================
-///	Do3DSupervoxelSegmentation_ForGivenNumberOfSupervoxels
-///
-/// This is the extension of SLIC to 3D supervoxels. In addition to the color
-/// image, the input includes the x, y and z coordinates in the world
-/// coordinate system.
-///
-/// The input parameter ubuff conains RGB values in a 32-bit unsigned integers
-/// as follows:
-///
-/// [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]
-///
-///        Nothing              R                 G                  B
-///
-/// The RGB values are accessed from (and packed into) the unsigned integers
-/// using bitwise operators as can be seen in the function DoRGBtoLABConversion().
-///
-/// compactness value depends on the input pixels values. For instance, if
-/// the input is greyscale with values ranging from 0-100, then a compactness
-/// value of 20.0 would give good results. A greater value will make the
-/// superpixels more compact while a smaller value would make them more uneven.
-///
-/// The labels can be saved if needed using SaveSuperpixelLabels()
-//===========================================================================
-void SLIC::Do3DSupervoxelSegmentation_ForGivenNumberOfSupervoxels(
-        const unsigned int*                             ubuff,
-        const float*                                   x,
-        const float*                                   y,
-        const float*                                   z,
-	const int					width,
-	const int					height,
-	int*&						klabels,
-	int&						numlabels,
-	const int&					K,//required number of superpixels
-        const float&                                   compactness,
-        const bool&                                     perturbseeds,
-        const int                                       iterations,
-        const int                                       color)
-{
-    const int superpixelsize = 0.5+float(width*height)/float(K);
-    Do3DSupervoxelSegmentation_ForGivenSupervoxelSize(ubuff,x,y,z,width,height,klabels,numlabels,superpixelsize,compactness,perturbseeds,iterations,color);
-}
-
-//===========================================================================
-///	DoSupervoxelSegmentation
-///
-/// There is option to save the labels if needed.
-///
-/// The input parameter ubuffvec holds all the video frames. It is a
-/// 2-dimensional array. The first dimension is depth and the second dimension
-/// is pixel location in a frame. For example, to access a pixel in the 3rd
-/// frame (i.e. depth index 2), in the 4th row (i.e. height index 3) on the
-/// 37th column (i.e. width index 36), you would write:
-///
-/// unsigned int the_pixel_i_want = ubuffvec[2][3*width + 36]
-///
-/// In addition, here is how the RGB values are contained in a 32-bit unsigned
-/// integer:
-///
-/// [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]
-///
-///        Nothing              R                 G                  B
-///
-/// The RGB values are accessed from (and packed into) the unsigned integers
-/// using bitwise operators as can be seen in the function DoRGBtoLABConversion().
-///
-/// compactness value depends on the input pixels values. For instance, if
-/// the input is greyscale with values ranging from 0-100, then a compactness
-/// value of 20.0 would give good results. A greater value will make the
-/// supervoxels more compact while a smaller value would make them more uneven.
-//===========================================================================
-void SLIC::DoSupervoxelSegmentation(
-	unsigned int**&				ubuffvec,
-	const int&					width,
-	const int&					height,
-	const int&					depth,
-	int**&						klabels,
-	int&						numlabels,
-    const int&					supervoxelsize,
-    const float&               compactness)
-{
-    //---------------------------------------------------------
-    const int STEP = 0.5 + pow(float(supervoxelsize),1.0/3.0);
-    //---------------------------------------------------------
-	vector<float> kseedsl(0);
-	vector<float> kseedsa(0);
-	vector<float> kseedsb(0);
-	vector<float> kseedsx(0);
-	vector<float> kseedsy(0);
-	vector<float> kseedsz(0);
-
-	//--------------------------------------------------
-	m_width  = width;
-	m_height = height;
-	m_depth  = depth;
-	int sz = m_width*m_height;
-	
-	//--------------------------------------------------
-        //klabels = new int*[depth];
-	m_lvecvec = new float*[depth];
-	m_avecvec = new float*[depth];
-	m_bvecvec = new float*[depth];
-	for( int d = 0; d < depth; d++ )
+	// We want to do this out of this function.
+	if (false)
 	{
-                //klabels[d] = new int[sz];
-		m_lvecvec[d] = new float[sz];
-		m_avecvec[d] = new float[sz];
-		m_bvecvec[d] = new float[sz];
-		for( int s = 0; s < sz; s++ )
-		{
-			klabels[d][s] = -1;
-		}
+		int* nlabels = new int[sz];
+		EnforceLabelConnectivity(klabels, m_width, m_height, nlabels, args.numlabels, float(sz)/float(STEP*STEP));
+		{for(int i = 0; i < sz; i++ ) klabels[i] = nlabels[i];}
+		if(nlabels) delete [] nlabels;
 	}
-	
-	DoRGBtoLABConversion(ubuffvec, m_lvecvec, m_avecvec, m_bvecvec);
-
-	GetKValues_LABXYZ(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, kseedsz, STEP);
-
-	PerformSupervoxelSLIC(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, kseedsz, klabels, STEP, compactness);
-
-	EnforceSupervoxelLabelConnectivity(klabels, width, height, depth, numlabels, STEP);
 }
 
+
+void SLIC::EnforceLabelConnectivity_extended (
+		int*					klabels,//input labels that need to be corrected to remove stray labels
+		const int					width,
+		const int					height,
+		const int&					num_sp_desired, //the number of superpixels desired by the user)
+		int&						numlabels_out)//the number of labels changes in the end if segments are removed
+{
+	int sz = width*height;
+	int* nlabels = new int[sz];
+	EnforceLabelConnectivity(klabels, width, height, nlabels, numlabels_out, num_sp_desired);
+	{for(int i = 0; i < sz; i++ ) klabels[i] = nlabels[i];}
+	if(nlabels) delete [] nlabels;
+
+}

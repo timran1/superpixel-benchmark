@@ -34,6 +34,8 @@
 
 #include <opencv2/opencv.hpp>
 
+#include "SLIC.h"
+
 /** \brief Wrapper for running SLIC on OpenCV images.
  * \author David Stutz
  */
@@ -48,20 +50,19 @@ public:
      * \param[in] color_space color space to use, > 0 for Lab, 0 for RGB
      * \param[out] labels superpixel labels
      */
-    static void computeSuperpixels(const cv::Mat &image, int region_size, 
-            double compactness, int iterations, bool perturb_seeds, 
-            int color_space, cv::Mat &labels, bool stateful);
+    static void computeSuperpixels(SLIC &slic, const cv::Mat &image, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
+
+    static void EnforceLabelConnectivity_extended (SLIC &slic, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
 
     /*
         Extended superpixel handling
     */
-    static void computeSuperpixels_extended(const cv::Mat &image, int region_size, 
-            double compactness, int iterations, bool perturb_seeds, 
-            int color_space, cv::Mat &labels, int superpixels, bool stateful);
+    static void computeSuperpixels_extended(const cv::Mat &image, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
 
 
     static void getLabelContourMask(const cv::Mat &mat,
             cv::Mat &labels, cv::OutputArray _mask, bool _thick_line);
+
 };
 
 #endif	/* SLIC_OPENCV_H */

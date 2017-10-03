@@ -190,12 +190,17 @@ int main(int argc, const char** argv) {
 
             result = image;
 
-            int region_size = SuperpixelTools::computeRegionSizeFromSuperpixels(image,
-                superpixels);
+            CUSTOMSLIC_ARGS args;
+            args.region_size = SuperpixelTools::computeRegionSizeFromSuperpixels(image, superpixels);
+            args.iterations = iterations;
+            args.compactness = compactness;
+            args.perturbseeds = perturb_seeds;
+            args.color = color_space;
+            args.stateful = stateful;
+            args.numlabels = superpixels;
 
             boost::timer timer;
-            CUSTOMSLIC_OpenCV::computeSuperpixels_extended(image, region_size, compactness,
-                iterations, perturb_seeds, color_space, labels, superpixels, stateful);
+            CUSTOMSLIC_OpenCV::computeSuperpixels_extended(image, labels, args);
             float elapsed = timer.elapsed();
 
             // Create contours for display.
@@ -238,12 +243,17 @@ int main(int argc, const char** argv) {
             cv::Mat image = cv::imread(it->first);
             cv::Mat labels;
 
-            int region_size = SuperpixelTools::computeRegionSizeFromSuperpixels(image,
-                    superpixels);
+            CUSTOMSLIC_ARGS args;
+            args.region_size = SuperpixelTools::computeRegionSizeFromSuperpixels(image, superpixels);
+            args.iterations = iterations;
+            args.compactness = compactness;
+            args.perturbseeds = perturb_seeds;
+            args.color = color_space;
+            args.stateful = false;
+            args.numlabels = superpixels;
 
             boost::timer timer;
-            CUSTOMSLIC_OpenCV::computeSuperpixels_extended(image, region_size, compactness,
-                    iterations, perturb_seeds, color_space, labels, superpixels, stateful);
+            CUSTOMSLIC_OpenCV::computeSuperpixels_extended(image, labels, args);
             float elapsed = timer.elapsed();
             total += elapsed;
 

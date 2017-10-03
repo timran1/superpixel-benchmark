@@ -21,135 +21,42 @@
 #include <algorithm>
 using namespace std;
 
+class CUSTOMSLIC_ARGS {
+public:
+	 // knobs
+	 bool stateful;
+     int iterations;
+     int tile_square_side;
+
+     // outputs
+	 int numlabels;	// = superpixels in main.cpp
+
+	 // We do not mess with these
+     int region_size;
+     float compactness;
+     bool perturbseeds;
+     int color;
+
+     CUSTOMSLIC_ARGS ()
+     {
+    	 tile_square_side = 0;
+     }
+};
+
 class SLIC  
 {
 public:
 	SLIC();
 	virtual ~SLIC();
         //============================================================================
-	// Superpixel segmentation for a given step size (superpixel size ~= step*step)
-	//============================================================================
-        void DoDepthSuperpixelSegmentation_ForGivenSeedProbabilities(
-                const unsigned int*                             ubuff,
-                const unsigned short*                           depth,
-                const int					width,
-                const int					height,
-                int*&						klabels,
-                int&						numlabels,
-                const float                                     variance,
-                const int                                       superpixels,
-                const float&                                   compactness,
-                const bool&                                     perturbseeds,
-                const int                                       iterations,
-                const int                                       color);
-	//============================================================================
-	// Superpixel segmentation for a given step size (superpixel size ~= step*step)
-	//============================================================================
-        void DoSuperpixelSegmentation_ForGivenSuperpixelSize(
-                const unsigned int*                             ubuff,//Each 32 bit unsigned int contains ARGB pixel values.
-		const int					width,
-		const int					height,
-		int*&						klabels,
-		int&						numlabels,
-                const int&					superpixelsize,
-                const float&                                   compactness,
-                const bool&                                     perturbseeds = false,
-                const int                                       iterations = 10,
-                const int                                       color = 1);
-        //============================================================================
 	// Superpixel segmentation for a given step size
 	//============================================================================
         void DoSuperpixelSegmentation_ForGivenSuperpixelStep(
                 const unsigned int*                             ubuff,//Each 32 bit unsigned int contains ARGB pixel values.
-		const int					width,
-		const int					height,
-		int*&						klabels,
-		int&						numlabels,
-                const int&					superpixelstep,
-                const float&                                   compactness,
-                const bool&                                     perturbseeds = false,
-                const int                                       iterations = 10,
-                const int                                       color = 1,
-                const bool                                      stateful = false);
-	//============================================================================
-	// Superpixel segmentation for a given number of superpixels
-	//============================================================================
-        void DoSuperpixelSegmentation_ForGivenNumberOfSuperpixels(
-                const unsigned int*                             ubuff,
-		const int					width,
-		const int					height,
-		int*&						klabels,
-		int&						numlabels,
-                const int&					K,//required number of superpixels
-                const float&                                   compactness,
-                const bool&                                     perturbseeds = false,
-                const int                                       iterations = 10,
-                const int                                       color = 1);
-        //============================================================================
-	// 3D Supervoxel segmentation for a given step size (supervoxel size projected to
-        // image plane ~= step*step)
-	//============================================================================
-        void Do3DSupervoxelSegmentation_ForGivenSupervoxelSize(
-                const unsigned int*                             ubuff,//Each 32 bit unsigned int contains ARGB pixel values.
-                const float*                                   x,
-                const float*                                   y,
-                const float*                                   z,
-		const int					width,
-		const int					height,
-		int*&						klabels,
-		int&						numlabels,
-                const int&					superpixelsize,
-                const float&                                   compactness,
-                const bool&                                     perturbseeds = false,
-                const int                                       iterations = 10,
-                const int                                       color = 1);
-        //============================================================================
-	// 3D Supervoxel segmentation for a given step size
-	//============================================================================
-        void Do3DSupervoxelSegmentation_ForGivenSupervoxelStep(
-                const unsigned int*                             ubuff,//Each 32 bit unsigned int contains ARGB pixel values.
-                const float*                                   x,
-                const float*                                   y,
-                const float*                                   z,
-		const int					width,
-		const int					height,
-		int*&						klabels,
-		int&						numlabels,
-                const int&					superpixelstep,
-                const float&                                   compactness,
-                const bool&                                     perturbseeds = false,
-                const int                                       iterations = 10,
-                const int                                       color = 1);
-        //============================================================================
-	// 3D Supervoxel segmentation for a given step size (supervoxel size projected to
-        // image plane ~= step*step)
-	//============================================================================
-        void Do3DSupervoxelSegmentation_ForGivenNumberOfSupervoxels(
-                const unsigned int*                             ubuff,//Each 32 bit unsigned int contains ARGB pixel values.
-                const float*                                   x,
-                const float*                                   y,
-                const float*                                   z,
-		const int					width,
-		const int					height,
-		int*&						klabels,
-		int&						numlabels,
-                const int&					K,//required number of supervoxels
-                const float&                                   compactness,
-                const bool&                                     perturbseeds = false,
-                const int                                       iterations = 10,
-                const int                                       color = 1);
-	//============================================================================
-	// Supervoxel segmentation for a given step size (supervoxel size ~= step*step*step)
-	//============================================================================
-	void DoSupervoxelSegmentation(
-		unsigned int**&		ubuffvec,
-		const int&					width,
-		const int&					height,
-		const int&					depth,
-		int**&						klabels,
-		int&						numlabels,
-                const int&					supervoxelsize,
-                const float&                                   compactness);
+                const int					width,
+                const int					height,
+                int*&						klabels,
+				CUSTOMSLIC_ARGS & args);
 	//============================================================================
 	// Save superpixel labels in a text file in raster scan order
 	//============================================================================
@@ -180,6 +87,16 @@ public:
 		const int&					height,
 		const unsigned int&			color );
 
+
+
+	void EnforceLabelConnectivity_extended (
+			int*						klabels,//input labels that need to be corrected to remove stray labels
+			const int					width,
+			const int					height,
+			const int&					num_sp_desired, //the number of superpixels desired by the user)
+			int&						numlabels_out);//the number of labels changes in the end if segments are removed
+
+
 private:
 	//============================================================================
 	// The main SLIC algorithm for generating superpixels
@@ -191,41 +108,7 @@ private:
 		vector<float>&				kseedsx,
 		vector<float>&				kseedsy,
 		int*&						klabels,
-		const int&					STEP,
-                const vector<float>&                   edgemag,
-		const float&				m = 10.0,
-                const int                               iterations = 10,
-				const bool stateful = false);
-        //============================================================================
-	// The main SLIC algorithm for generating 3D supervoxels
-	//============================================================================
-	void Perform3DSupervoxelSLIC(
-		vector<float>&				kseedsl,
-		vector<float>&				kseedsa,
-		vector<float>&				kseedsb,
-		vector<float>&				kseedsox,
-		vector<float>&				kseedsoy,
-                vector<float>&				kseedsx,
-		vector<float>&				kseedsy,
-		vector<float>&				kseedsz,
-		int*&						klabels,
-		const int&					STEP,
-                const vector<float>&		edgemag,
-		const float&				m = 10.0,
-                const int                               iterations = 10);
-	//============================================================================
-	// The main SLIC algorithm for generating supervoxels
-	//============================================================================
-	void PerformSupervoxelSLIC(
-		vector<float>&				kseedsl,
-		vector<float>&				kseedsa,
-		vector<float>&				kseedsb,
-		vector<float>&				kseedsx,
-		vector<float>&				kseedsy,
-		vector<float>&				kseedsz,
-		int**&						klabels,
-		const int&					STEP,
-		const float&				compactness);
+		CUSTOMSLIC_ARGS & args);
         //============================================================================
 	// Pick seeds for superpixels when step size of superpixels is given.
 	//============================================================================
