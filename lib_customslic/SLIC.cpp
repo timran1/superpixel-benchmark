@@ -972,19 +972,9 @@ void SLIC::PerformSuperpixelSLIC(
 
 	int x1, y1, x2, y2;
 
-	bool use_pyramid_access = false;
-
-	vector<int> access_pattern (args.iterations, 1);
-	if (use_pyramid_access)
-	{
-		access_pattern [0] = 16;	// first iteration access of all pixels assigns initial seeds automatically.
-		access_pattern [1] = 1;
-		access_pattern [2] = 1;
-	}
-
 	for( int itr = 0; itr < args.iterations; itr++ )
 	{
-		ImageRasterScan image_scan (access_pattern[itr]);
+		ImageRasterScan image_scan (args.access_pattern[itr]);
 
 #ifdef APPROXIMATION
 		assign_fixed_vector (distvec, sz, FLT_MAX);

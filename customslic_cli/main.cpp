@@ -39,6 +39,7 @@
 #include "io_util.h"
 #include "superpixel_tools.h"
 #include "visualization.h"
+#include "helpers.h"
 
 /** \brief Command line tool for running customslic.
  * Usage:
@@ -80,7 +81,8 @@ int main(int argc, const char** argv) {
 		("camera", "Use camera feed")
 		("small-video", "Set camera frame size = 320x240")
 		("stateful", "Use state from previous frame")
-		("tile-size", boost::program_options::value<int>()->default_value(0), "Size of side of tile square");
+		("tile-size", boost::program_options::value<int>()->default_value(0), "Size of side of tile square")
+	    ("pyramid-pattern", boost::program_options::value<std::string>(), "access pattern for reverse pyramid approach");
         
     boost::program_options::positional_options_description positionals;
     positionals.add("input", 1);
@@ -132,6 +134,19 @@ int main(int argc, const char** argv) {
     	stateful = true;
     }
 
+    std::vector<int> access_pattern;
+    if (parameters.find("pyramid-pattern") != parameters.end()) {
+    	std::string pattern_str = parameters["pyramid-pattern"].as<std::string>();
+    	std::vector<std::string> tokens;
+
+    	split(pattern_str, '*', std::back_inserter(tokens));
+    	for (int i=0; i<tokens.size (); i++)
+    	{
+    		access_pattern.push_back (atoi (tokens[i].c_str ()));
+    	}
+
+    	access_pattern.back () = 1;
+    }
 
     bool wordy = false;
     if (parameters.find("wordy") != parameters.end()) {
@@ -146,8 +161,33 @@ int main(int argc, const char** argv) {
     int color_space = parameters["color-space"].as<int> ();
     int tile_size = parameters["tile-size"].as<int> ();
     
+
+    CUSTOMSLIC_ARGS args;
+    args.iterations = iterations;
+    args.compactness = compactness;
+    args.perturbseeds = perturb_seeds;
+    args.color = color_space;
+    args.stateful = stateful;
+    args.numlabels = superpixels;
+
+    if (access_pattern.size() > 0)
+    {
+    	args.access_pattern = access_pattern;
+    	if (args.access_pattern.size () != args.iterations)
+    	{
+    		args.access_pattern.resize (args.iterations, 1);
+    	}
+    }else
+    {
+        args.access_pattern.resize (iterations, 1);
+    }
+
     if (use_camera || use_video_file)
     {
+
+        args.tile_square_side = stateful ? 0 : tile_size;	// We do not support tiling with statefulness.
+
+
         int capture = 0; // Camera ID
 
         cv::VideoCapture cap;
@@ -190,17 +230,9 @@ int main(int argc, const char** argv) {
                 std::cout << "Empty frame received. Exiting..." << std::endl;
             }
 
-            result = image;
-
-            CUSTOMSLIC_ARGS args;
             args.region_size = SuperpixelTools::computeRegionSizeFromSuperpixels(image, superpixels);
-            args.iterations = iterations;
-            args.compactness = compactness;
-            args.perturbseeds = perturb_seeds;
-            args.color = color_space;
-            args.stateful = stateful;
-            args.numlabels = superpixels;
-            args.tile_square_side = tile_size;
+
+            result = image;
 
             boost::timer timer;
             CUSTOMSLIC_OpenCV::computeSuperpixels_extended(image, labels, args);
@@ -246,15 +278,8 @@ int main(int argc, const char** argv) {
             cv::Mat image = cv::imread(it->first);
             cv::Mat labels;
 
-            CUSTOMSLIC_ARGS args;
             args.region_size = SuperpixelTools::computeRegionSizeFromSuperpixels(image, superpixels);
-            args.iterations = iterations;
-            args.compactness = compactness;
-            args.perturbseeds = perturb_seeds;
-            args.color = color_space;
-            args.stateful = false;
-            args.numlabels = superpixels;
-            args.tile_square_side = tile_size;
+            args.stateful = false;	// No statefulness needed for pictures
 
             boost::timer timer;
             CUSTOMSLIC_OpenCV::computeSuperpixels_extended(image, labels, args);

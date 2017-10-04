@@ -48,20 +48,25 @@ function list_include_item {
 
 #tuple = <algo>-<iterations>-<tile-size>-tuple
 
-#TUPLES_TO_UPDATE_LIST=("customslic-3-16-tuple")
+#TUPLES_TO_UPDATE_LIST=("customslic-3-0-8*8*1-tuple")
+#TUPLES_TO_UPDATE_LIST=("slic-10")
 
 SUPERPIXELS=("200" "300" "400" "600" "800" "1000" "1200" "1400" "1600" "1800" "2000" "2400" "2800" "3200" "3600" "4000" "4600" "5200")
 NUM_ITERATIONS_LIST=("3")
-SQUARE_SIDES_LIST=("16" "32" "64")
+SQUARE_SIDES_LIST=("0")
+PYRAMID_PATTERN_LIST=("16*8*1" "8*8*1" "8*4*1" "8*2*1")
 
 # Create algo_tuples list and print it.
-algo_tuples_list=("slic-3")
+algo_tuples_list=("slic-2" "slic-3" "slic-10")
 for SQUARE_SIDES in "${SQUARE_SIDES_LIST[@]}"
 do
 	for NUM_ITERATIONS in "${NUM_ITERATIONS_LIST[@]}"
 	do
-		algo_tuple="customslic-$NUM_ITERATIONS-$SQUARE_SIDES-tuple"
-		algo_tuples_list+=(${algo_tuple})
+		for PYRAMID_PATTERN in "${PYRAMID_PATTERN_LIST[@]}"
+		do
+			algo_tuple="customslic-$NUM_ITERATIONS-$SQUARE_SIDES-$PYRAMID_PATTERN-tuple"
+			algo_tuples_list+=(${algo_tuple})
+		done
 	done
 done
 echo "***Algo tuples:***"
@@ -106,6 +111,7 @@ do
 	algo=${parts[0]}
 	iterations=${parts[1]}
 	tile_size=${parts[2]}
+	pyramid_pattern=${parts[3]}
 
 	for SUPERPIXEL in "${SUPERPIXELS[@]}"
 	do
@@ -120,7 +126,8 @@ do
 			../bin/${algo}_cli ../data/BSDS500/images/test/ \
 				--superpixels $SUPERPIXEL -o ../output/${algo_tuple}/$SUPERPIXEL -w \
 				--iterations $iterations \
-				--tile-size $tile_size
+				--tile-size $tile_size \
+				--pyramid-pattern $pyramid_pattern
 
 		fi
 

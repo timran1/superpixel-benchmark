@@ -28,6 +28,7 @@ public:
      int iterations;
      int tile_square_side;
      bool one_sided_padding;
+     vector<int> access_pattern;
 
      // outputs
 	 int numlabels;	// = superpixels in main.cpp
