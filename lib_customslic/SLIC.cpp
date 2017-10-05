@@ -22,10 +22,10 @@ SLIC::SLIC()
 	m_avec = NULL;
 	m_bvec = NULL;
 
-    m_xvec = NULL;
-    m_yvec = NULL;
-    m_zvec = NULL;
-    
+	m_xvec = NULL;
+	m_yvec = NULL;
+	m_zvec = NULL;
+
 	m_lvecvec = NULL;
 	m_avecvec = NULL;
 	m_bvecvec = NULL;
@@ -37,10 +37,10 @@ SLIC::~SLIC()
 	if(m_avec) delete [] m_avec;
 	if(m_bvec) delete [] m_bvec;
 
-    if(m_xvec) delete [] m_xvec;
+	if(m_xvec) delete [] m_xvec;
 	if(m_yvec) delete [] m_yvec;
 	if(m_zvec) delete [] m_zvec;
-    
+
 	if(m_lvecvec)
 	{
 		for( int d = 0; d < m_depth; d++ ) delete [] m_lvecvec[d];
@@ -64,12 +64,12 @@ SLIC::~SLIC()
 /// sRGB (D65 illuninant assumption) to XYZ conversion
 //==============================================================================
 void SLIC::RGB2XYZ(
-	const int&		sR,
-	const int&		sG,
-	const int&		sB,
-	float&			X,
-	float&			Y,
-	float&			Z)
+		const int&		sR,
+		const int&		sG,
+		const int&		sB,
+		float&			X,
+		float&			Y,
+		float&			Z)
 {
 	float R = sR/255.0;
 	float G = sG/255.0;
@@ -133,10 +133,10 @@ void SLIC::RGB2LAB(const int& sR, const int& sG, const int& sB, float& lval, flo
 ///	For whole image: overlaoded floating point version
 //===========================================================================
 void SLIC::DoRGBtoLABConversion(
-	const unsigned int*&		ubuff,
-	float*&					lvec,
-	float*&					avec,
-	float*&					bvec)
+		const unsigned int*&		ubuff,
+		float*&					lvec,
+		float*&					avec,
+		float*&					bvec)
 {
 	int sz = m_width*m_height;
 	lvec = new float[sz];
@@ -153,148 +153,16 @@ void SLIC::DoRGBtoLABConversion(
 	}
 }
 
-//===========================================================================
-///	DoRGBtoLABConversion
-///
-/// For whole volume
-//===========================================================================
-void SLIC::DoRGBtoLABConversion(
-	unsigned int**&		ubuff,
-	float**&					lvec,
-	float**&					avec,
-	float**&					bvec)
-{
-	int sz = m_width*m_height;
-	for( int d = 0; d < m_depth; d++ )
-	{
-		for( int j = 0; j < sz; j++ )
-		{
-			int r = (ubuff[d][j] >> 16) & 0xFF;
-			int g = (ubuff[d][j] >>  8) & 0xFF;
-			int b = (ubuff[d][j]      ) & 0xFF;
-
-			RGB2LAB( r, g, b, lvec[d][j], avec[d][j], bvec[d][j] );
-		}
-	}
-}
-
-//=================================================================================
-/// DrawContoursAroundSegments
-///
-/// Internal contour drawing option exists. One only needs to comment the if
-/// statement inside the loop that looks at neighbourhood.
-//=================================================================================
-void SLIC::DrawContoursAroundSegments(
-	unsigned int*&			ubuff,
-	int*&					labels,
-	const int&				width,
-	const int&				height,
-	const unsigned int&				color )
-{
-	const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
-	const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
-
-/*	int sz = width*height;
-
-	vector<bool> istaken(sz, false);
-
-	int mainindex(0);
-	for( int j = 0; j < height; j++ )
-	{
-		for( int k = 0; k < width; k++ )
-		{
-			int np(0);
-			for( int i = 0; i < 8; i++ )
-			{
-				int x = k + dx8[i];
-				int y = j + dy8[i];
-
-				if( (x >= 0 && x < width) && (y >= 0 && y < height) )
-				{
-					int index = y*width + x;
-
-					if( false == istaken[index] )//comment this to obtain internal contours
-					{
-						if( labels[mainindex] != labels[index] ) np++;
-					}
-				}
-			}
-			if( np > 1 )//change to 2 or 3 for thinner lines
-			{
-				ubuff[mainindex] = color;
-				istaken[mainindex] = true;
-			}
-			mainindex++;
-		}
-	}*/
-
-
-	int sz = width*height;
-	vector<bool> istaken(sz, false);
-	vector<int> contourx(sz);vector<int> contoury(sz);
-	int mainindex(0);int cind(0);
-	for( int j = 0; j < height; j++ )
-	{
-		for( int k = 0; k < width; k++ )
-		{
-			int np(0);
-			for( int i = 0; i < 8; i++ )
-			{
-				int x = k + dx8[i];
-				int y = j + dy8[i];
-
-				if( (x >= 0 && x < width) && (y >= 0 && y < height) )
-				{
-					int index = y*width + x;
-
-					//if( false == istaken[index] )//comment this to obtain internal contours
-					{
-						if( labels[mainindex] != labels[index] ) np++;
-					}
-				}
-			}
-			if( np > 1 )
-			{
-				contourx[cind] = k;
-				contoury[cind] = j;
-				istaken[mainindex] = true;
-				//img[mainindex] = color;
-				cind++;
-			}
-			mainindex++;
-		}
-	}
-
-	int numboundpix = cind;//int(contourx.size());
-	for( int j = 0; j < numboundpix; j++ )
-	{
-		int ii = contoury[j]*width + contourx[j];
-		ubuff[ii] = 0xffffff;
-
-		for( int n = 0; n < 8; n++ )
-		{
-			int x = contourx[j] + dx8[n];
-			int y = contoury[j] + dy8[n];
-			if( (x >= 0 && x < width) && (y >= 0 && y < height) )
-			{
-				int ind = y*width + x;
-				if(!istaken[ind]) ubuff[ind] = 0;
-			}
-		}
-	}
-}
-
-
 //==============================================================================
 ///	DetectLabEdges
 //==============================================================================
 void SLIC::DetectLabEdges(
-	const float*				lvec,
-	const float*				avec,
-	const float*				bvec,
-	const int&					width,
-	const int&					height,
-	vector<float>&				edges)
+		const float*				lvec,
+		const float*				avec,
+		const float*				bvec,
+		const int&					width,
+		const int&					height,
+		vector<float>&				edges)
 {
 	int sz = width*height;
 
@@ -306,12 +174,12 @@ void SLIC::DetectLabEdges(
 			int i = j*width+k;
 
 			float dx = (lvec[i-1]-lvec[i+1])*(lvec[i-1]-lvec[i+1]) +
-						(avec[i-1]-avec[i+1])*(avec[i-1]-avec[i+1]) +
-						(bvec[i-1]-bvec[i+1])*(bvec[i-1]-bvec[i+1]);
+					(avec[i-1]-avec[i+1])*(avec[i-1]-avec[i+1]) +
+					(bvec[i-1]-bvec[i+1])*(bvec[i-1]-bvec[i+1]);
 
 			float dy = (lvec[i-width]-lvec[i+width])*(lvec[i-width]-lvec[i+width]) +
-						(avec[i-width]-avec[i+width])*(avec[i-width]-avec[i+width]) +
-						(bvec[i-width]-bvec[i+width])*(bvec[i-width]-bvec[i+width]);
+					(avec[i-width]-avec[i+width])*(avec[i-width]-avec[i+width]) +
+					(bvec[i-width]-bvec[i+width])*(bvec[i-width]-bvec[i+width]);
 
 			//edges[i] = fabs(dx) + fabs(dy);
 			edges[i] = dx*dx + dy*dy;
@@ -323,16 +191,16 @@ void SLIC::DetectLabEdges(
 ///	PerturbSeeds
 //===========================================================================
 void SLIC::PerturbSeeds(
-	vector<float>&				kseedsl,
-	vector<float>&				kseedsa,
-	vector<float>&				kseedsb,
-	vector<float>&				kseedsx,
-	vector<float>&				kseedsy,
-        const vector<float>&                   edges)
+		vector<float>&				kseedsl,
+		vector<float>&				kseedsa,
+		vector<float>&				kseedsb,
+		vector<float>&				kseedsx,
+		vector<float>&				kseedsy,
+		const vector<float>&                   edges)
 {
 	const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
 	const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
-	
+
 	int numseeds = kseedsl.size();
 
 	for( int n = 0; n < numseeds; n++ )
@@ -368,227 +236,21 @@ void SLIC::PerturbSeeds(
 }
 
 //===========================================================================
-///	PerturbSeeds
-//===========================================================================
-void SLIC::PerturbSeeds(
-	vector<float>&				kseedsl,
-	vector<float>&				kseedsa,
-	vector<float>&				kseedsb,
-    vector<float>&             kseedsox,
-    vector<float>&             kseedsoy,
-	vector<float>&				kseedsx,
-	vector<float>&				kseedsy,
-    vector<float>&				kseedsz,
-        const vector<float>&                   edges)
-{
-	const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
-	const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
-	
-	int numseeds = kseedsl.size();
-
-	for( int n = 0; n < numseeds; n++ )
-	{
-		int ox = kseedsox[n];//original x
-		int oy = kseedsoy[n];//original y
-		int oind = oy*m_width + ox;
-
-		int storeind = oind;
-		for( int i = 0; i < 8; i++ )
-		{
-			int nx = ox+dx8[i];//new x
-			int ny = oy+dy8[i];//new y
-
-			if( nx >= 0 && nx < m_width && ny >= 0 && ny < m_height)
-			{
-				int nind = ny*m_width + nx;
-				if( edges[nind] < edges[storeind])
-				{
-					storeind = nind;
-				}
-			}
-		}
-		if(storeind != oind)
-		{
-            int storex = storeind%m_width;
-            int storey = storeind/m_width;
-            
-			kseedsox[n] = storex;
-			kseedsoy[n] = storey;
-            kseedsx[n] = m_xvec[storeind];
-			kseedsy[n] = m_yvec[storeind];
-            kseedsz[n] = m_zvec[storeind];
-			kseedsl[n] = m_lvec[storeind];
-			kseedsa[n] = m_avec[storeind];
-			kseedsb[n] = m_bvec[storeind];
-		}
-	}
-}
-
-//===========================================================================
-///	GetLABXYSeeds_ForGivenSeedProbability
-///
-/// The k seed values are taken as uniform spatial pixel samples.
-//===========================================================================
-void SLIC::GetLABXYSeeds_ForGivenSeedProbabilities(
-	vector<float>&				kseedsl,
-	vector<float>&				kseedsa,
-	vector<float>&				kseedsb,
-	vector<float>&				kseedsx,
-	vector<float>&				kseedsy,
-    const float&                                variance,
-    const unsigned short*                        depth,
-        const int                               superpixels,
-    const bool&					perturbseeds,
-    const vector<float>&       edgemag)
-{
-    // Get max and min depth.
-    float D = 0;
-    for (int i = 0; i < m_width*m_height; i++)
-    {
-        D += depth[i];
-    }
-    
-    // Compute probability map.
-    float* p = new float[m_width*m_height];
-    for (int x = 0; x < m_width; x++)
-    {
-        for (int y = 0; y < m_height; y++)
-        {
-            int i = y*m_width + x;
-            
-            p[i] = depth[i]/D;
-        }
-    }
-    
-    kseedsl.resize(superpixels);
-    kseedsa.resize(superpixels);
-    kseedsb.resize(superpixels);
-    kseedsx.resize(superpixels);
-    kseedsy.resize(superpixels);
-    
-    const float M = 1;
-    const float q = 1/((float) (m_width*m_height));
-    
-    int S = 0;
-    while (S < superpixels)
-    {
-        int i = std::rand () % m_width*m_height;
-        float u = std::rand () / (float) RAND_MAX;
-        
-        if (u < depth[i]/(M*q))
-        {
-            int x = i%m_width;
-            int y = i/m_width;
-            
-            assert(x < m_width);
-            assert(y < m_height);
-            
-            kseedsl[S] = m_lvec[i];
-            kseedsa[S]= m_avec[i];
-            kseedsb[S] = m_bvec[i];
-            
-            kseedsx[S] = x;
-            kseedsy[S] = y;
-            
-            // Adapt the probability according to depth.
-            float g_variance = variance/depth[i];
-            
-            for (int xx = std::max(0, int(x - 3*g_variance)); 
-                    xx < std::min(m_width - 1, int(x + 3*g_variance)); xx++)
-            {
-                for (int yy = std::max(0, int(y - 3*g_variance)); 
-                        yy < std::min(m_height - 1, int(y + 3*g_variance)); yy++)
-                {
-                    int ii = yy*m_width + xx;
-                    
-                    float g = 1/(2*M_PI*g_variance) * std::exp(- ((x - xx)*(x - xx) + (y - yy)*(y - yy))/(2*g_variance*g_variance));
-                    p[ii] = std::max(0.f, p[i] - g);
-                    
-                    // Ignore renormalizing.
-                }
-            }
-            
-            S++;
-        }
-    }
-    
-    assert (kseedsl.size () == superpixels);
-    
-	if(perturbseeds)
-	{
-		PerturbSeeds(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, edgemag);
-	}
-    
-//    const int STEP = 20;
-//    const bool hexgrid = false;
-//	int numseeds(0);
-//	int n(0);
-//
-//	//int xstrips = m_width/STEP;
-//	//int ystrips = m_height/STEP;
-//	int xstrips = (0.5+float(m_width)/float(STEP));
-//	int ystrips = (0.5+float(m_height)/float(STEP));
-//
-//    int xerr = m_width  - STEP*xstrips;if(xerr < 0){xstrips--;xerr = m_width - STEP*xstrips;}
-//    int yerr = m_height - STEP*ystrips;if(yerr < 0){ystrips--;yerr = m_height- STEP*ystrips;}
-//
-//	float xerrperstrip = float(xerr)/float(xstrips);
-//	float yerrperstrip = float(yerr)/float(ystrips);
-//
-//	int xoff = STEP/2;
-//	int yoff = STEP/2;
-//	//-------------------------
-//	numseeds = xstrips*ystrips;
-//	//-------------------------
-//	kseedsl.resize(numseeds);
-//	kseedsa.resize(numseeds);
-//	kseedsb.resize(numseeds);
-//	kseedsx.resize(numseeds);
-//	kseedsy.resize(numseeds);
-//
-//	for( int y = 0; y < ystrips; y++ )
-//	{
-//		int ye = y*yerrperstrip;
-//		for( int x = 0; x < xstrips; x++ )
-//		{
-//			int xe = x*xerrperstrip;
-//            int seedx = (x*STEP+xoff+xe);
-//            if(hexgrid){ seedx = x*STEP+(xoff<<(y&0x1))+xe; seedx = min(m_width-1,seedx); }//for hex grid sampling
-//            int seedy = (y*STEP+yoff+ye);
-//            int i = seedy*m_width + seedx;
-//			
-//			kseedsl[n] = m_lvec[i];
-//			kseedsa[n] = m_avec[i];
-//			kseedsb[n] = m_bvec[i];
-//            kseedsx[n] = seedx;
-//            kseedsy[n] = seedy;
-//			n++;
-//		}
-//	}
-//
-//	
-//	if(perturbseeds)
-//	{
-//		PerturbSeeds(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, edgemag);
-//	}
-}
-
-//===========================================================================
 ///	GetLABXYSeeds_ForGivenStepSize
 ///
 /// The k seed values are taken as uniform spatial pixel samples.
 //===========================================================================
 void SLIC::GetLABXYSeeds_ForGivenStepSize(
-	vector<float>&				kseedsl,
-	vector<float>&				kseedsa,
-	vector<float>&				kseedsb,
-	vector<float>&				kseedsx,
-	vector<float>&				kseedsy,
-    const int&					STEP,
-    const bool&					perturbseeds,
-    const vector<float>&       edgemag)
+		vector<float>&				kseedsl,
+		vector<float>&				kseedsa,
+		vector<float>&				kseedsb,
+		vector<float>&				kseedsx,
+		vector<float>&				kseedsy,
+		const int&					STEP,
+		const bool&					perturbseeds,
+		const vector<float>&       edgemag)
 {
-    const bool hexgrid = false;
+	const bool hexgrid = false;
 	int numseeds(0);
 	int n(0);
 
@@ -597,8 +259,8 @@ void SLIC::GetLABXYSeeds_ForGivenStepSize(
 	int xstrips = (0.5+float(m_width)/float(STEP));
 	int ystrips = (0.5+float(m_height)/float(STEP));
 
-    int xerr = m_width  - STEP*xstrips;if(xerr < 0){xstrips--;xerr = m_width - STEP*xstrips;}
-    int yerr = m_height - STEP*ystrips;if(yerr < 0){ystrips--;yerr = m_height- STEP*ystrips;}
+	int xerr = m_width  - STEP*xstrips;if(xerr < 0){xstrips--;xerr = m_width - STEP*xstrips;}
+	int yerr = m_height - STEP*ystrips;if(yerr < 0){ystrips--;yerr = m_height- STEP*ystrips;}
 
 	float xerrperstrip = float(xerr)/float(xstrips);
 	float yerrperstrip = float(yerr)/float(ystrips);
@@ -620,168 +282,24 @@ void SLIC::GetLABXYSeeds_ForGivenStepSize(
 		for( int x = 0; x < xstrips; x++ )
 		{
 			int xe = x*xerrperstrip;
-            int seedx = (x*STEP+xoff+xe);
-            if(hexgrid){ seedx = x*STEP+(xoff<<(y&0x1))+xe; seedx = min(m_width-1,seedx); }//for hex grid sampling
-            int seedy = (y*STEP+yoff+ye);
-            int i = seedy*m_width + seedx;
-			
+			int seedx = (x*STEP+xoff+xe);
+			if(hexgrid){ seedx = x*STEP+(xoff<<(y&0x1))+xe; seedx = min(m_width-1,seedx); }//for hex grid sampling
+			int seedy = (y*STEP+yoff+ye);
+			int i = seedy*m_width + seedx;
+
 			kseedsl[n] = m_lvec[i];
 			kseedsa[n] = m_avec[i];
 			kseedsb[n] = m_bvec[i];
-            kseedsx[n] = seedx;
-            kseedsy[n] = seedy;
+			kseedsx[n] = seedx;
+			kseedsy[n] = seedy;
 			n++;
 		}
 	}
 
-	
+
 	if(perturbseeds)
 	{
 		PerturbSeeds(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, edgemag);
-	}
-}
-
-//===========================================================================
-///	GetLABXYZSeeds_ForGivenStepSize
-///
-/// The k seed values are taken as uniform spatial pixel samples.
-//===========================================================================
-void SLIC::GetLABXYZSeeds_ForGivenStepSize(
-	vector<float>&				kseedsl,
-	vector<float>&				kseedsa,
-	vector<float>&				kseedsb,
-    vector<float>&             kseedsox,
-    vector<float>&             kseedsoy,
-	vector<float>&				kseedsx,
-	vector<float>&				kseedsy,
-    vector<float>&             kseedsz,
-    const int&					STEP,
-    const bool&					perturbseeds,
-    const vector<float>&       edgemag)
-{
-    const bool hexgrid = false;
-	int numseeds(0);
-	int n(0);
-
-	//int xstrips = m_width/STEP;
-	//int ystrips = m_height/STEP;
-	int xstrips = (0.5+float(m_width)/float(STEP));
-	int ystrips = (0.5+float(m_height)/float(STEP));
-
-    int xerr = m_width  - STEP*xstrips;if(xerr < 0){xstrips--;xerr = m_width - STEP*xstrips;}
-    int yerr = m_height - STEP*ystrips;if(yerr < 0){ystrips--;yerr = m_height- STEP*ystrips;}
-
-	float xerrperstrip = float(xerr)/float(xstrips);
-	float yerrperstrip = float(yerr)/float(ystrips);
-
-	int xoff = STEP/2;
-	int yoff = STEP/2;
-	//-------------------------
-	numseeds = xstrips*ystrips;
-	//-------------------------
-	kseedsl.resize(numseeds);
-	kseedsa.resize(numseeds);
-	kseedsb.resize(numseeds);
-    kseedsox.resize(numseeds);
-	kseedsoy.resize(numseeds);
-	kseedsx.resize(numseeds);
-	kseedsy.resize(numseeds);
-    kseedsz.resize(numseeds);
-    
-	for( int y = 0; y < ystrips; y++ )
-	{
-		int ye = y*yerrperstrip;
-		for( int x = 0; x < xstrips; x++ )
-		{
-			int xe = x*xerrperstrip;
-            int seedx = (x*STEP+xoff+xe);
-            if(hexgrid){ seedx = x*STEP+(xoff<<(y&0x1))+xe; seedx = min(m_width-1,seedx); }//for hex grid sampling
-            int seedy = (y*STEP+yoff+ye);
-            int i = seedy*m_width + seedx;
-			
-			kseedsl[n] = m_lvec[i];
-			kseedsa[n] = m_avec[i];
-			kseedsb[n] = m_bvec[i];
-                        kseedsox[n] = seedx;
-                        kseedsoy[n] = seedy;
-                        kseedsx[n] = m_xvec[i];
-                        kseedsy[n] = m_yvec[i];
-                        kseedsz[n] = m_zvec[i];
-            
-                        n++;
-		}
-	}
-    
-	if(perturbseeds)
-	{
-		PerturbSeeds(kseedsl, kseedsa, kseedsb, kseedsox, kseedsoy, kseedsx, kseedsy, kseedsz, edgemag);
-	}
-}
-
-//===========================================================================
-///	GetKValues_LABXYZ
-///
-/// The k seed values are taken as uniform spatial pixel samples.
-//===========================================================================
-void SLIC::GetKValues_LABXYZ(
-	vector<float>&				kseedsl,
-	vector<float>&				kseedsa,
-	vector<float>&				kseedsb,
-	vector<float>&				kseedsx,
-	vector<float>&				kseedsy,
-	vector<float>&				kseedsz,
-        const int&				STEP)
-{
-//    const bool hexgrid = false;
-	int numseeds(0);
-	int n(0);
-
-	int xstrips = (0.5+float(m_width)/float(STEP));
-	int ystrips = (0.5+float(m_height)/float(STEP));
-	int zstrips = (0.5+float(m_depth)/float(STEP));
-
-    int xerr = m_width  - STEP*xstrips;if(xerr < 0){xstrips--;xerr = m_width - STEP*xstrips;}
-    int yerr = m_height - STEP*ystrips;if(yerr < 0){ystrips--;yerr = m_height- STEP*ystrips;}
-    int zerr = m_depth  - STEP*zstrips;if(zerr < 0){zstrips--;zerr = m_depth - STEP*zstrips;}
-
-	float xerrperstrip = float(xerr)/float(xstrips);
-	float yerrperstrip = float(yerr)/float(ystrips);
-	float zerrperstrip = float(zerr)/float(zstrips);
-
-	int xoff = STEP/2;
-	int yoff = STEP/2;
-	int zoff = STEP/2;
-	//-------------------------
-	numseeds = xstrips*ystrips*zstrips;
-	//-------------------------
-	kseedsl.resize(numseeds);
-	kseedsa.resize(numseeds);
-	kseedsb.resize(numseeds);
-	kseedsx.resize(numseeds);
-	kseedsy.resize(numseeds);
-	kseedsz.resize(numseeds);
-
-	for( int z = 0; z < zstrips; z++ )
-	{
-		int ze = z*zerrperstrip;
-		int d = (z*STEP+zoff+ze);
-		for( int y = 0; y < ystrips; y++ )
-		{
-			int ye = y*yerrperstrip;
-			for( int x = 0; x < xstrips; x++ )
-			{
-				int xe = x*xerrperstrip;
-				int i = (y*STEP+yoff+ye)*m_width + (x*STEP+xoff+xe);
-				
-				kseedsl[n] = m_lvecvec[d][i];
-				kseedsa[n] = m_avecvec[d][i];
-				kseedsb[n] = m_bvecvec[d][i];
-				kseedsx[n] = (x*STEP+xoff+xe);
-				kseedsy[n] = (y*STEP+yoff+ye);
-				kseedsz[n] = d;
-				n++;
-			}
-		}
 	}
 }
 
@@ -814,15 +332,15 @@ public:
 	vector<float>				kseedsb;
 	vector<float>				kseedsx;
 	vector<float>				kseedsy;
-    int*						klabels;
-    bool						is_init;
-    int 						superpixels;
-    State ()
-    {
+	int*						klabels;
+	bool						is_init;
+	int 						superpixels;
+	State ()
+	{
 		is_init = false;
 		klabels = NULL;
 		superpixels = 0;
-    }
+	}
 };
 
 State state;
@@ -851,15 +369,15 @@ inline void assign_fixed_vector (vector<fixedp>& vect, int size, float val)
 /// over the entire image.
 //===========================================================================
 void SLIC::PerformSuperpixelSLIC(
-	vector<float>&				kseedsl_arg,
-	vector<float>&				kseedsa_arg,
-	vector<float>&				kseedsb_arg,
-	vector<float>&				kseedsx_arg,
-	vector<float>&				kseedsy_arg,
-	int*&						klabels,
-	CUSTOMSLIC_ARGS & args)
+		vector<float>&				kseedsl_arg,
+		vector<float>&				kseedsa_arg,
+		vector<float>&				kseedsb_arg,
+		vector<float>&				kseedsx_arg,
+		vector<float>&				kseedsy_arg,
+		int*&						klabels,
+		CUSTOMSLIC_ARGS & args)
 {
-    const int STEP = args.region_size;
+	const int STEP = args.region_size;
 
 	if (!args.stateful)
 		state.is_init = false;
@@ -893,7 +411,7 @@ void SLIC::PerformSuperpixelSLIC(
 #ifdef APPROXIMATION
 	//----------------
 	fixedp offset (32, 0, STEP);
-        //if(STEP < 8) offset = STEP*1.5;//to prevent a crash due to a very small step size
+	//if(STEP < 8) offset = STEP*1.5;//to prevent a crash due to a very small step size
 	//----------------
 
 	vector<fixedp>				kseedsl (numk, fixedp (16, 16, 0)); for (int i=0; i<numk; i++)	kseedsl[i].convertTo (kseedsl_arg[i]);
@@ -932,7 +450,7 @@ void SLIC::PerformSuperpixelSLIC(
 #else
 	//----------------
 	int offset = STEP;
-        //if(STEP < 8) offset = STEP*1.5;//to prevent a crash due to a very small step size
+	//if(STEP < 8) offset = STEP*1.5;//to prevent a crash due to a very small step size
 	//----------------
 
 	vector<float>&				kseedsl = kseedsl_arg;
@@ -953,7 +471,7 @@ void SLIC::PerformSuperpixelSLIC(
 	vector<float> sigmax(numk, 0);
 	vector<float> sigmay(numk, 0);
 	vector<float> distvec(sz, DBL_MAX);
-        
+
 	float invwt = 1.0/((STEP/args.compactness)*(STEP/args.compactness));
 
 	float l, a, b;
@@ -1041,7 +559,7 @@ void SLIC::PerformSuperpixelSLIC(
 					y_diff_sq = y_diff * y_diff;
 
 					distxy =		x_diff_sq + y_diff_sq;
-					
+
 					//------------------------------------------------------------------------
 					temp_dist = distxy*invwt;
 					dist = dist + temp_dist;//dist = sqrt(dist) + sqrt(distxy*invwt);//this is more exact
@@ -1091,18 +609,18 @@ void SLIC::PerformSuperpixelSLIC(
 				}
 
 #ifdef APPROXIMATION
-					temp_l.convertTo (m_lvec[c + m_width*r]);
-					temp_a.convertTo (m_avec[c + m_width*r]);
-					temp_b.convertTo (m_bvec[c + m_width*r]);
-					temp_x.convertTo (c);
-					temp_y.convertTo (r);
+				temp_l.convertTo (m_lvec[c + m_width*r]);
+				temp_a.convertTo (m_avec[c + m_width*r]);
+				temp_b.convertTo (m_bvec[c + m_width*r]);
+				temp_x.convertTo (c);
+				temp_y.convertTo (r);
 
 #else
-					temp_l = m_lvec[c + m_width*r];
-					temp_a = m_avec[c + m_width*r];
-					temp_b = m_bvec[c + m_width*r];
-					temp_x = c;
-					temp_y = r;
+				temp_l = m_lvec[c + m_width*r];
+				temp_a = m_avec[c + m_width*r];
+				temp_b = m_bvec[c + m_width*r];
+				temp_x = c;
+				temp_y = r;
 #endif
 
 				sigmal[klabels[ind]] = sigmal[klabels[ind]] + temp_l;
@@ -1123,7 +641,7 @@ void SLIC::PerformSuperpixelSLIC(
 			if( clustersize[k] <= zero ) clustersize[k] = 1;
 			inv[k] = one/clustersize[k];//computing inverse now to multiply, than divide later
 		}}
-		
+
 		{for( int k = 0; k < numk; k++ )
 		{
 			kseedsl[k] = sigmal[k]*inv[k];
@@ -1162,89 +680,6 @@ void SLIC::PerformSuperpixelSLIC(
 }
 
 //===========================================================================
-///	SaveSuperpixelLabels
-///
-///	Save labels in raster scan order.
-//===========================================================================
-void SLIC::SaveSuperpixelLabels(
-	const int*&					labels,
-	const int&					width,
-	const int&					height,
-	const string&				filename,
-	const string&				path) 
-{
-#ifdef WINDOWS
-        char fname[256];
-        char extn[256];
-        _splitpath(filename.c_str(), NULL, NULL, fname, extn);
-        string temp = fname;
-        string finalpath = path + temp + string(".dat");
-#else
-        string nameandextension = filename;
-        size_t pos = filename.find_last_of("/");
-        if(pos != string::npos)//if a slash is found, then take the filename with extension
-        {
-            nameandextension = filename.substr(pos+1);
-        }
-        string newname = nameandextension.replace(nameandextension.rfind(".")+1, 3, "dat");//find the position of the dot and replace the 3 characters following it.
-        string finalpath = path+newname;
-#endif
-
-        int sz = width*height;
-	ofstream outfile;
-	outfile.open(finalpath.c_str(), ios::binary);
-	for( int i = 0; i < sz; i++ )
-	{
-		outfile.write((const char*)&labels[i], sizeof(int));
-	}
-	outfile.close();
-}
-
-
-//===========================================================================
-///	SaveSupervoxelLabels
-///
-///	Save labels in raster scan order.
-//===========================================================================
-void SLIC::SaveSupervoxelLabels(
-	const int**&				labels,
-	const int&					width,
-	const int&					height,
-	const int&					depth,
-	const string&				filename,
-	const string&				path) 
-{
-#ifdef WINDOWS
-        char fname[256];
-        char extn[256];
-        _splitpath(filename.c_str(), NULL, NULL, fname, extn);
-        string temp = fname;
-        string finalpath = path + temp + string(".dat");
-#else
-        string nameandextension = filename;
-        size_t pos = filename.find_last_of("/");
-        if(pos != string::npos)//if a slash is found, then take the filename with extension
-        {
-            nameandextension = filename.substr(pos+1);
-        }
-        string newname = nameandextension.replace(nameandextension.rfind(".")+1, 3, "dat");//find the position of the dot and replace the 3 characters following it.
-        string finalpath = path+newname;
-#endif
-
-        int sz = width*height;
-	ofstream outfile;
-	outfile.open(finalpath.c_str(), ios::binary);
-	for( int d = 0; d < depth; d++ )
-	{
-		for( int i = 0; i < sz; i++ )
-		{
-			outfile.write((const char*)&labels[d][i], sizeof(int));
-		}
-	}
-	outfile.close();
-}
-
-//===========================================================================
 ///	EnforceLabelConnectivity
 ///
 ///		1. finding an adjacent label for each new component at the start
@@ -1252,15 +687,15 @@ void SLIC::SaveSupervoxelLabels(
 ///		    adjacent label to this component, and not incrementing the label.
 //===========================================================================
 void SLIC::EnforceLabelConnectivity(
-	const int*					labels,//input labels that need to be corrected to remove stray labels
-	const int					width,
-	const int					height,
-	int*&						nlabels,//new labels
-	int&						numlabels,//the number of labels changes in the end if segments are removed
-	const int&					K) //the number of superpixels desired by the user
+		const int*					labels,//input labels that need to be corrected to remove stray labels
+		const int					width,
+		const int					height,
+		int*&						nlabels,//new labels
+		int&						numlabels,//the number of labels changes in the end if segments are removed
+		const int&					K) //the number of superpixels desired by the user
 {
-//	const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
-//	const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
+	//	const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
+	//	const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
 
 	const int dx4[4] = {-1,  0,  1,  0};
 	const int dy4[4] = { 0, -1,  0,  1};
@@ -1348,135 +783,6 @@ void SLIC::EnforceLabelConnectivity(
 }
 
 
-//===========================================================================
-///	RelabelStraySupervoxels
-//===========================================================================
-void SLIC::EnforceSupervoxelLabelConnectivity(
-	int**&						labels,//input - previous labels, output - new labels
-	const int&					width,
-	const int&					height,
-	const int&					depth,
-	int&						numlabels,
-	const int&					STEP)
-{
-	const int dx10[10] = {-1,  0,  1,  0, -1,  1,  1, -1,  0, 0};
-	const int dy10[10] = { 0, -1,  0,  1, -1, -1,  1,  1,  0, 0};
-	const int dz10[10] = { 0,  0,  0,  0,  0,  0,  0,  0, -1, 1};
-
-	int sz = width*height;
-	const int SUPSZ = STEP*STEP*STEP;
-
-	int adjlabel(0);//adjacent label
-        int* xvec = new int[SUPSZ*10];//a large enough size
-        int* yvec = new int[SUPSZ*10];//a large enough size
-        int* zvec = new int[SUPSZ*10];//a large enough size
-	//------------------
-	// memory allocation
-	//------------------
-	int** nlabels = new int*[depth];
-	{for( int d = 0; d < depth; d++ )
-	{
-		nlabels[d] = new int[sz];
-		for( int i = 0; i < sz; i++ ) nlabels[d][i] = -1;
-	}}
-	//------------------
-	// labeling
-	//------------------
-	int lab(0);
-	{for( int d = 0; d < depth; d++ )
-	{
-		int i(0);
-		for( int h = 0; h < height; h++ )
-		{
-			for( int w = 0; w < width; w++ )
-			{
-				if(nlabels[d][i] < 0)
-				{
-					nlabels[d][i] = lab;
-					//-------------------------------------------------------
-					// Quickly find an adjacent label for use later if needed
-					//-------------------------------------------------------
-					{for( int n = 0; n < 10; n++ )
-					{
-						int x = w + dx10[n];
-						int y = h + dy10[n];
-						int z = d + dz10[n];
-						if( (x >= 0 && x < width) && (y >= 0 && y < height) && (z >= 0 && z < depth) )
-						{
-							int nindex = y*width + x;
-							if(nlabels[z][nindex] >= 0)
-							{
-								adjlabel = nlabels[z][nindex];
-							}
-						}
-					}}
-					
-					xvec[0] = w; yvec[0] = h; zvec[0] = d;
-					int count(1);
-					for( int c = 0; c < count; c++ )
-					{
-						for( int n = 0; n < 10; n++ )
-						{
-							int x = xvec[c] + dx10[n];
-							int y = yvec[c] + dy10[n];
-							int z = zvec[c] + dz10[n];
-
-							if( (x >= 0 && x < width) && (y >= 0 && y < height) && (z >= 0 && z < depth))
-							{
-								int nindex = y*width + x;
-
-								if( 0 > nlabels[z][nindex] && labels[d][i] == labels[z][nindex] )
-								{
-									xvec[count] = x;
-									yvec[count] = y;
-									zvec[count] = z;
-									nlabels[z][nindex] = lab;
-									count++;
-								}
-							}
-
-						}
-					}
-					//-------------------------------------------------------
-					// If segment size is less then a limit, assign an
-					// adjacent label found before, and decrement label count.
-					//-------------------------------------------------------
-					if(count <= (SUPSZ >> 2))//this threshold can be changed according to needs
-					{
-						for( int c = 0; c < count; c++ )
-						{
-							int ind = yvec[c]*width+xvec[c];
-							nlabels[zvec[c]][ind] = adjlabel;
-						}
-						lab--;
-					}
-					//--------------------------------------------------------
-					lab++;
-				}
-				i++;
-			}
-		}
-	}}
-	//------------------
-	// mem de-allocation
-	//------------------
-	{for( int d = 0; d < depth; d++ )
-	{
-		for( int i = 0; i < sz; i++ ) labels[d][i] = nlabels[d][i];
-	}}
-	{for( int d = 0; d < depth; d++ )
-	{
-		delete [] nlabels[d];
-	}}
-	delete [] nlabels;
-	//------------------
-	if(xvec) delete [] xvec;
-	if(yvec) delete [] yvec;
-	if(zvec) delete [] zvec;
-	//------------------
-	numlabels = lab;
-	//------------------
-}
 
 //===========================================================================
 ///	DoSuperpixelSegmentation_ForGivenSuperpixelSize
@@ -1499,15 +805,15 @@ void SLIC::EnforceSupervoxelLabelConnectivity(
 /// The labels can be saved if needed using SaveSuperpixelLabels()
 //===========================================================================
 void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelStep(
-        const unsigned int*                             ubuff,
+		const unsigned int*                             ubuff,
 		const int					width,
 		const int					height,
 		int*&						klabels,
 		CUSTOMSLIC_ARGS & 								args)
 {
-    //------------------------------------------------
-    const int STEP = args.region_size;
-    //------------------------------------------------
+	//------------------------------------------------
+	const int STEP = args.region_size;
+	//------------------------------------------------
 	vector<float> kseedsl(0);
 	vector<float> kseedsa(0);
 	vector<float> kseedsb(0);
@@ -1522,21 +828,21 @@ void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelStep(
 	//--------------------------------------------------
 	klabels = new int[sz];
 	for( int s = 0; s < sz; s++ ) klabels[s] = -1;
-    //--------------------------------------------------
-    if(args.color > 0)//LAB, the default option
-    {
-        DoRGBtoLABConversion(ubuff, m_lvec, m_avec, m_bvec);
-    }
-    else//RGB
-    {
-        m_lvec = new float[sz]; m_avec = new float[sz]; m_bvec = new float[sz];
-        for( int i = 0; i < sz; i++ )
-        {
-                m_lvec[i] = ubuff[i] >> 16 & 0xff;
-                m_avec[i] = ubuff[i] >>  8 & 0xff;
-                m_bvec[i] = ubuff[i]       & 0xff;
-        }
-    }
+	//--------------------------------------------------
+	if(args.color > 0)//LAB, the default option
+	{
+		DoRGBtoLABConversion(ubuff, m_lvec, m_avec, m_bvec);
+	}
+	else//RGB
+	{
+		m_lvec = new float[sz]; m_avec = new float[sz]; m_bvec = new float[sz];
+		for( int i = 0; i < sz; i++ )
+		{
+			m_lvec[i] = ubuff[i] >> 16 & 0xff;
+			m_avec[i] = ubuff[i] >>  8 & 0xff;
+			m_bvec[i] = ubuff[i]       & 0xff;
+		}
+	}
 	//--------------------------------------------------
 	vector<float> edgemag(0);
 	if(args.perturbseeds) DetectLabEdges(m_lvec, m_avec, m_bvec, m_width, m_height, edgemag);

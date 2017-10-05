@@ -41,22 +41,11 @@
  */
 class CUSTOMSLIC_OpenCV {
 public:
-    /** \brief Compute superpixels using SLIC.
-     * \param[in] image image to compute superpixels on
-     * \param[in] region_size size between superpixels implicitly defining number of superpixels
-     * \param[in] compactness compactness parameter
-     * \param[in] iterations number of iterations
-     * \param[in] perturb_seeds whether to perturb seeds for better performance
-     * \param[in] color_space color space to use, > 0 for Lab, 0 for RGB
-     * \param[out] labels superpixel labels
-     */
+
     static void computeSuperpixels(const cv::Mat &image, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
 
     static void EnforceLabelConnectivity_extended (cv::Mat &labels, CUSTOMSLIC_ARGS& args);
 
-    /*
-        Extended superpixel handling
-    */
     static void computeSuperpixels_extended(const cv::Mat &image, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
 
 
