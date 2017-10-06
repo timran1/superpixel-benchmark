@@ -35,11 +35,11 @@ find_package(OpenCV REQUIRED)
 
 include_directories(../lib_eval/ ${OpenCV_INCLUDE_DIRS})
 
-#set(CMAKE_CXX_FLAGS "-g -O0")
-set(CMAKE_CXX_FLAGS "-O3")
+set(CMAKE_CXX_FLAGS "-g -O0 -std=c++0x")
+#set(CMAKE_CXX_FLAGS "-O3")
 
 add_library(customslic
     customslic_opencv.cpp
     SLIC.cpp
 )
-target_link_libraries(customslic ${OpenCV_LIBRARIES})
+target_link_libraries(customslic eval ${OpenCV_LIBRARIES})

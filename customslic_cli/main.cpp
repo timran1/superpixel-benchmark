@@ -169,6 +169,7 @@ int main(int argc, const char** argv) {
     args.color = color_space;
     args.stateful = stateful;
     args.numlabels = superpixels;
+    args.tile_square_side = tile_size;
 
     if (access_pattern.size() > 0)
     {
@@ -185,7 +186,7 @@ int main(int argc, const char** argv) {
     if (use_camera || use_video_file)
     {
 
-        args.tile_square_side = stateful ? 0 : tile_size;	// We do not support tiling with statefulness.
+        //args.tile_square_side = stateful ? 0 : tile_size;	// We do not support tiling with statefulness.
 
 
         int capture = 0; // Camera ID
@@ -217,10 +218,25 @@ int main(int argc, const char** argv) {
 
         cv::Mat result, mask;
 
+        CUSTOMSLIC_OpenCV custom_slic;
         for (;;)
         {
             cv::Mat image;
             cv::Mat labels;
+
+            // Update args for this frame.
+            if (!args.stateful ||
+					args.iterations != iterations ||
+					args.numlabels != superpixels)
+            {
+            	custom_slic.reset ();
+            }
+
+            if (args.iterations != iterations)
+            	args.access_pattern.resize (iterations, 1);
+
+            args.iterations = iterations;
+            args.numlabels = superpixels;
 
             // Capture a frame.
             cap >> image;
@@ -230,12 +246,12 @@ int main(int argc, const char** argv) {
                 std::cout << "Empty frame received. Exiting..." << std::endl;
             }
 
-            args.region_size = SuperpixelTools::computeRegionSizeFromSuperpixels(image, superpixels);
-
             result = image;
 
             boost::timer timer;
-            CUSTOMSLIC_OpenCV::computeSuperpixels_extended(image, labels, args);
+
+            custom_slic.computeSuperpixels_extended(image, labels, args);
+
             float elapsed = timer.elapsed();
 
             // Create contours for display.
@@ -278,11 +294,11 @@ int main(int argc, const char** argv) {
             cv::Mat image = cv::imread(it->first);
             cv::Mat labels;
 
-            args.region_size = SuperpixelTools::computeRegionSizeFromSuperpixels(image, superpixels);
             args.stateful = false;	// No statefulness needed for pictures
 
             boost::timer timer;
-            CUSTOMSLIC_OpenCV::computeSuperpixels_extended(image, labels, args);
+            CUSTOMSLIC_OpenCV custom_slic;
+            custom_slic.computeSuperpixels_extended(image, labels, args);
             float elapsed = timer.elapsed();
             total += elapsed;
 

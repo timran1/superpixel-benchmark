@@ -12,50 +12,21 @@
 #include "SLIC.h"
 #include "libfixp.h"
 
+using namespace std;
+
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
-SLIC::SLIC()
+SLIC::SLIC(Image& img, CUSTOMSLIC_ARGS& args)
+	: img (img), args (args)
 {
-	m_lvec = NULL;
-	m_avec = NULL;
-	m_bvec = NULL;
-
-	m_xvec = NULL;
-	m_yvec = NULL;
-	m_zvec = NULL;
-
-	m_lvecvec = NULL;
-	m_avecvec = NULL;
-	m_bvecvec = NULL;
+	state.init (args, img.width * img.height);
 }
 
 SLIC::~SLIC()
 {
-	if(m_lvec) delete [] m_lvec;
-	if(m_avec) delete [] m_avec;
-	if(m_bvec) delete [] m_bvec;
 
-	if(m_xvec) delete [] m_xvec;
-	if(m_yvec) delete [] m_yvec;
-	if(m_zvec) delete [] m_zvec;
-
-	if(m_lvecvec)
-	{
-		for( int d = 0; d < m_depth; d++ ) delete [] m_lvecvec[d];
-		delete [] m_lvecvec;
-	}
-	if(m_avecvec)
-	{
-		for( int d = 0; d < m_depth; d++ ) delete [] m_avecvec[d];
-		delete [] m_avecvec;
-	}
-	if(m_bvecvec)
-	{
-		for( int d = 0; d < m_depth; d++ ) delete [] m_bvecvec[d];
-		delete [] m_bvecvec;
-	}
 }
 
 //==============================================================================
@@ -132,54 +103,69 @@ void SLIC::RGB2LAB(const int& sR, const int& sG, const int& sB, float& lval, flo
 ///
 ///	For whole image: overlaoded floating point version
 //===========================================================================
-void SLIC::DoRGBtoLABConversion(
-		const unsigned int*&		ubuff,
-		float*&					lvec,
-		float*&					avec,
-		float*&					bvec)
+cv::Mat SLIC::DoRGBtoLABConversion(const cv::Mat &mat)
 {
-	int sz = m_width*m_height;
-	lvec = new float[sz];
-	avec = new float[sz];
-	bvec = new float[sz];
+	cv::Mat out;
+	out.create(mat.rows, mat.cols, CV_32FC3);
 
-	for( int j = 0; j < sz; j++ )
-	{
-		int r = (ubuff[j] >> 16) & 0xFF;
-		int g = (ubuff[j] >>  8) & 0xFF;
-		int b = (ubuff[j]      ) & 0xFF;
+    for (int i = 0; i < mat.rows; ++i) {
+        for (int j = 0; j < mat.cols; ++j) {
 
-		RGB2LAB( r, g, b, lvec[j], avec[j], bvec[j] );
+            int b = mat.at<cv::Vec3b>(i,j)[0];
+            int g = mat.at<cv::Vec3b>(i,j)[1];
+            int r = mat.at<cv::Vec3b>(i,j)[2];
+
+            int arr_index = j + mat.cols*i;
+
+            float l_out, a_out, b_out;
+    		RGB2LAB( r, g, b, l_out, a_out, b_out);
+
+    		out.at<cv::Vec3f>(i,j)[0] = l_out;
+    		out.at<cv::Vec3f>(i,j)[1] = a_out;
+    		out.at<cv::Vec3f>(i,j)[2] = b_out;
+        }
+    }
+    return out;
+}
+
+//==============================================================================
+///	GetLabelsMat
+//==============================================================================
+void SLIC::GetLabelsMat(cv::Mat &labels)
+{
+	// Convert labels.
+	labels.create(img.height, img.width, CV_32SC1);
+	for (int i = 0; i < img.height; ++i) {
+		for (int j = 0; j < img.width; ++j) {
+			labels.at<int>(i, j) = state.labels[j + i*img.width];
+		}
 	}
 }
 
 //==============================================================================
 ///	DetectLabEdges
 //==============================================================================
-void SLIC::DetectLabEdges(
-		const float*				lvec,
-		const float*				avec,
-		const float*				bvec,
-		const int&					width,
-		const int&					height,
-		vector<float>&				edges)
+void SLIC::DetectLabEdges (vector<float>& edges)
 {
+	int& width = img.width;
+	int& height = img.height;
+
 	int sz = width*height;
 
 	edges.resize(sz,0);
-	for( int j = 1; j < height-1; j++ )
+	for( int j = 1; j < img.height-1; j++ )
 	{
-		for( int k = 1; k < width-1; k++ )
+		for( int k = 1; k < img.width-1; k++ )
 		{
-			int i = j*width+k;
+			int i = j*img.width+k;
 
-			float dx = (lvec[i-1]-lvec[i+1])*(lvec[i-1]-lvec[i+1]) +
-					(avec[i-1]-avec[i+1])*(avec[i-1]-avec[i+1]) +
-					(bvec[i-1]-bvec[i+1])*(bvec[i-1]-bvec[i+1]);
+			float dx = (img.data[i-1].l-img.data[i+1].l)*(img.data[i-1].l-img.data[i+1].l) +
+					(img.data[i-1].a-img.data[i+1].a)*(img.data[i-1].a-img.data[i+1].a) +
+					(img.data[i-1].b-img.data[i+1].b)*(img.data[i-1].b-img.data[i+1].b);
 
-			float dy = (lvec[i-width]-lvec[i+width])*(lvec[i-width]-lvec[i+width]) +
-					(avec[i-width]-avec[i+width])*(avec[i-width]-avec[i+width]) +
-					(bvec[i-width]-bvec[i+width])*(bvec[i-width]-bvec[i+width]);
+			float dy = (img.data[i-width].l-img.data[i+width].l)*(img.data[i-width].l-img.data[i+width].l) +
+					(img.data[i-width].a-img.data[i+width].a)*(img.data[i-width].a-img.data[i+width].a) +
+					(img.data[i-width].b-img.data[i+width].b)*(img.data[i-width].b-img.data[i+width].b);
 
 			//edges[i] = fabs(dx) + fabs(dy);
 			edges[i] = dx*dx + dy*dy;
@@ -190,24 +176,20 @@ void SLIC::DetectLabEdges(
 //===========================================================================
 ///	PerturbSeeds
 //===========================================================================
-void SLIC::PerturbSeeds(
-		vector<float>&				kseedsl,
-		vector<float>&				kseedsa,
-		vector<float>&				kseedsb,
-		vector<float>&				kseedsx,
-		vector<float>&				kseedsy,
-		const vector<float>&                   edges)
+void SLIC::PerturbSeeds(const vector<float>& edges)
 {
+	vector<Pixel>& cluster_centers = state.cluster_centers;
+
 	const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
 	const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
 
-	int numseeds = kseedsl.size();
+	int numseeds = cluster_centers.size();
 
 	for( int n = 0; n < numseeds; n++ )
 	{
-		int ox = kseedsx[n];//original x
-		int oy = kseedsy[n];//original y
-		int oind = oy*m_width + ox;
+		int ox = cluster_centers[n].x;//original x
+		int oy = cluster_centers[n].y;//original y
+		int oind = oy*img.width + ox;
 
 		int storeind = oind;
 		for( int i = 0; i < 8; i++ )
@@ -215,9 +197,9 @@ void SLIC::PerturbSeeds(
 			int nx = ox+dx8[i];//new x
 			int ny = oy+dy8[i];//new y
 
-			if( nx >= 0 && nx < m_width && ny >= 0 && ny < m_height)
+			if( nx >= 0 && nx < img.width && ny >= 0 && ny < img.height)
 			{
-				int nind = ny*m_width + nx;
+				int nind = ny*img.width + nx;
 				if( edges[nind] < edges[storeind])
 				{
 					storeind = nind;
@@ -226,13 +208,31 @@ void SLIC::PerturbSeeds(
 		}
 		if(storeind != oind)
 		{
-			kseedsx[n] = storeind%m_width;
-			kseedsy[n] = storeind/m_width;
-			kseedsl[n] = m_lvec[storeind];
-			kseedsa[n] = m_avec[storeind];
-			kseedsb[n] = m_bvec[storeind];
+			cluster_centers[n] = Pixel (
+					img.data[storeind].l,
+					img.data[storeind].a,
+					img.data[storeind].b,
+					storeind%img.width,
+					storeind/img.width);
 		}
 	}
+}
+
+//===========================================================================
+///	SetInitialSeeds
+///
+/// High level function to find initial seeds on the image.
+//===========================================================================
+void SLIC::SetInitialSeeds ()
+{
+	vector<float> edgemag(0);
+	if(args.perturbseeds)
+		DetectLabEdges(edgemag);
+	GetLABXYSeeds_ForGivenStepSize(edgemag);
+
+	// compute region size for number of clusters actually created. args.region_size is
+    // used to determine search area during SLIC iterations.
+	state.updateRegionSizeFromSuperpixels (img.width *img.height, state.cluster_centers.size ());
 }
 
 //===========================================================================
@@ -240,27 +240,23 @@ void SLIC::PerturbSeeds(
 ///
 /// The k seed values are taken as uniform spatial pixel samples.
 //===========================================================================
-void SLIC::GetLABXYSeeds_ForGivenStepSize(
-		vector<float>&				kseedsl,
-		vector<float>&				kseedsa,
-		vector<float>&				kseedsb,
-		vector<float>&				kseedsx,
-		vector<float>&				kseedsy,
-		const int&					STEP,
-		const bool&					perturbseeds,
-		const vector<float>&       edgemag)
+void SLIC::GetLABXYSeeds_ForGivenStepSize(const vector<float>& edgemag)
 {
+	vector<Pixel>& cluster_centers = state.cluster_centers;
+	const int STEP = state.region_size;
+	const bool perturbseeds = args.perturbseeds;
+
 	const bool hexgrid = false;
 	int numseeds(0);
 	int n(0);
 
 	//int xstrips = m_width/STEP;
 	//int ystrips = m_height/STEP;
-	int xstrips = (0.5+float(m_width)/float(STEP));
-	int ystrips = (0.5+float(m_height)/float(STEP));
+	int xstrips = (0.5+float(img.width)/float(STEP));
+	int ystrips = (0.5+float(img.height)/float(STEP));
 
-	int xerr = m_width  - STEP*xstrips;if(xerr < 0){xstrips--;xerr = m_width - STEP*xstrips;}
-	int yerr = m_height - STEP*ystrips;if(yerr < 0){ystrips--;yerr = m_height- STEP*ystrips;}
+	int xerr = img.width  - STEP*xstrips;if(xerr < 0){xstrips--;xerr = img.width - STEP*xstrips;}
+	int yerr = img.height - STEP*ystrips;if(yerr < 0){ystrips--;yerr = img.height- STEP*ystrips;}
 
 	float xerrperstrip = float(xerr)/float(xstrips);
 	float yerrperstrip = float(yerr)/float(ystrips);
@@ -270,11 +266,7 @@ void SLIC::GetLABXYSeeds_ForGivenStepSize(
 	//-------------------------
 	numseeds = xstrips*ystrips;
 	//-------------------------
-	kseedsl.resize(numseeds);
-	kseedsa.resize(numseeds);
-	kseedsb.resize(numseeds);
-	kseedsx.resize(numseeds);
-	kseedsy.resize(numseeds);
+	cluster_centers.resize (numseeds);
 
 	for( int y = 0; y < ystrips; y++ )
 	{
@@ -283,67 +275,26 @@ void SLIC::GetLABXYSeeds_ForGivenStepSize(
 		{
 			int xe = x*xerrperstrip;
 			int seedx = (x*STEP+xoff+xe);
-			if(hexgrid){ seedx = x*STEP+(xoff<<(y&0x1))+xe; seedx = min(m_width-1,seedx); }//for hex grid sampling
+			if(hexgrid){ seedx = x*STEP+(xoff<<(y&0x1))+xe; seedx = min(img.width-1,seedx); }//for hex grid sampling
 			int seedy = (y*STEP+yoff+ye);
-			int i = seedy*m_width + seedx;
+			int i = seedy*img.width + seedx;
 
-			kseedsl[n] = m_lvec[i];
-			kseedsa[n] = m_avec[i];
-			kseedsb[n] = m_bvec[i];
-			kseedsx[n] = seedx;
-			kseedsy[n] = seedy;
+			cluster_centers[n] = Pixel (
+					img.data[i].l,
+					img.data[i].a,
+					img.data[i].b,
+					seedx,
+					seedy
+					);
 			n++;
 		}
 	}
 
-
 	if(perturbseeds)
 	{
-		PerturbSeeds(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, edgemag);
+		PerturbSeeds(edgemag);
 	}
 }
-
-class ImageRasterScan
-{
-public:
-	int skip;
-
-	ImageRasterScan (int skip)
-	{
-		this->skip = skip;
-	}
-
-	bool is_exact_index (int index)
-	{
-		return (index % skip == 0);
-	}
-
-	int get_near_index (int index)
-	{
-		return index - (index % skip);
-	}
-};
-
-class State
-{
-public:
-	vector<float>				kseedsl;
-	vector<float>				kseedsa;
-	vector<float>				kseedsb;
-	vector<float>				kseedsx;
-	vector<float>				kseedsy;
-	int*						klabels;
-	bool						is_init;
-	int 						superpixels;
-	State ()
-	{
-		is_init = false;
-		klabels = NULL;
-		superpixels = 0;
-	}
-};
-
-State state;
 
 //#define APPROXIMATION
 
@@ -368,44 +319,12 @@ inline void assign_fixed_vector (vector<fixedp>& vect, int size, float val)
 ///	Performs k mean segmentation. It is fast because it looks locally, not
 /// over the entire image.
 //===========================================================================
-void SLIC::PerformSuperpixelSLIC(
-		vector<float>&				kseedsl_arg,
-		vector<float>&				kseedsa_arg,
-		vector<float>&				kseedsb_arg,
-		vector<float>&				kseedsx_arg,
-		vector<float>&				kseedsy_arg,
-		int*&						klabels,
-		CUSTOMSLIC_ARGS & args)
+void SLIC::PerformSuperpixelSLIC()
 {
-	const int STEP = args.region_size;
+	const int STEP = state.region_size;
 
-	if (!args.stateful)
-		state.is_init = false;
-
-	if (args.stateful && state.is_init)
-	{
-		if (kseedsl_arg.size() == state.superpixels)
-		{
-			// previous state is valid
-			kseedsl_arg = state.kseedsl;
-			kseedsa_arg = state.kseedsa;
-			kseedsb_arg = state.kseedsb;
-			kseedsx_arg = state.kseedsx;
-			kseedsy_arg = state.kseedsy;
-
-			int sz = m_width*m_height;
-			for (int i=0; i<sz; i++)
-				klabels[i] = state.klabels[i];
-		}else
-		{
-			// Delete older state
-			state.is_init = false;
-		}
-	}
-
-
-	int sz = m_width*m_height;
-	const int numk = kseedsl_arg.size();
+	int sz = img.width*img.height;
+	const int numk = state.cluster_centers.size ();
 
 
 #ifdef APPROXIMATION
@@ -453,25 +372,15 @@ void SLIC::PerformSuperpixelSLIC(
 	//if(STEP < 8) offset = STEP*1.5;//to prevent a crash due to a very small step size
 	//----------------
 
-	vector<float>&				kseedsl = kseedsl_arg;
-	vector<float>&				kseedsa = kseedsa_arg;
-	vector<float>&				kseedsb = kseedsb_arg;
-	vector<float>&				kseedsx = kseedsx_arg;
-	vector<float>&				kseedsy = kseedsy_arg;
-
 	float one = 1;
 	float zero = 0;
 
 	vector<float> clustersize(numk, 0);
-	vector<float> inv(numk, 0);//to store 1/clustersize[k] values
+	vector<Pixel> sigma(numk);
 
-	vector<float> sigmal(numk, 0);
-	vector<float> sigmaa(numk, 0);
-	vector<float> sigmab(numk, 0);
-	vector<float> sigmax(numk, 0);
-	vector<float> sigmay(numk, 0);
 	vector<float> distvec(sz, DBL_MAX);
 
+	float inv;
 	float invwt = 1.0/((STEP/args.compactness)*(STEP/args.compactness));
 
 	float l, a, b;
@@ -501,21 +410,21 @@ void SLIC::PerformSuperpixelSLIC(
 #endif
 		for( int n = 0; n < numk; n++ )
 		{
-			y1_limit = kseedsy[n]-offset;
-			y2_limit = kseedsy[n]+offset;
-			x1_limit = kseedsx[n]-offset;
-			x2_limit = kseedsx[n]+offset;
+			y1_limit = state.cluster_centers[n].y-offset;
+			y2_limit = state.cluster_centers[n].y+offset;
+			x1_limit = state.cluster_centers[n].x-offset;
+			x2_limit = state.cluster_centers[n].x+offset;
 
 			y1 = max(0.0f,				float(y1_limit));
-			y2 = min((float)m_height,	float(y2_limit));
+			y2 = min((float)img.height,	float(y2_limit));
 			x1 = max(0.0f,				float(x1_limit));
-			x2 = min((float)m_width,	float(x2_limit));
+			x2 = min((float)img.width,	float(x2_limit));
 
 			for( int y = y1; y < y2; y++ )
 			{
 				for( int x = x1; x < x2; x++ )
 				{
-					int i = y*m_width + x;
+					int i = y*img.width + x;
 
 					if (!image_scan.is_exact_index (i))
 						continue;
@@ -531,20 +440,20 @@ void SLIC::PerformSuperpixelSLIC(
 					temp_x_2.convertTo (x);
 					temp_y_2.convertTo (y);
 #else
-					l = m_lvec[i];
-					a = m_avec[i];
-					b = m_bvec[i];
+					l = img.data[i].l;
+					a = img.data[i].a;
+					b = img.data[i].b;
 
-					temp_x = kseedsx[n];
-					temp_y = kseedsy[n];
+					temp_x = state.cluster_centers[n].x;
+					temp_y = state.cluster_centers[n].y;
 
 					temp_x_2 = x;
 					temp_y_2 = y;
 #endif
 
-					l_diff = (l - kseedsl[n]);
-					a_diff = (a - kseedsa[n]);
-					b_diff = (b - kseedsb[n]);
+					l_diff = (l - state.cluster_centers[n].l);
+					a_diff = (a - state.cluster_centers[n].a);
+					b_diff = (b - state.cluster_centers[n].b);
 
 					l_diff_sq = l_diff * l_diff;
 					a_diff_sq = a_diff * a_diff;
@@ -567,7 +476,7 @@ void SLIC::PerformSuperpixelSLIC(
 					if( dist < distvec[i] )
 					{
 						distvec[i] = dist;
-						klabels[i]  = n;
+						state.labels[i]  = n;
 					}
 				}
 			}
@@ -584,25 +493,18 @@ void SLIC::PerformSuperpixelSLIC(
 		assign_fixed_vector (sigmay, numk, 0);
 		assign_fixed_vector (clustersize, numk, 0);
 #else
-		sigmal.assign(numk, zero);
-		sigmaa.assign(numk, zero);
-		sigmab.assign(numk, zero);
-		sigmax.assign(numk, zero);
-		sigmay.assign(numk, zero);
+		sigma.assign(numk, Pixel ());
 		clustersize.assign(numk, zero);
 #endif
-		//------------------------------------
-		//edgesum.assign(numk, 0);
-		//------------------------------------
 
 		{int ind(0);
-		for( int r = 0; r < m_height; r++ )
+		for( int r = 0; r < img.height; r++ )
 		{
-			for( int c = 0; c < m_width; c++ )
+			for( int c = 0; c < img.width; c++ )
 			{
 				// If not fitting the pyramid scan pattern or the pixel has not
 				// been assigned to a SP yet, just continue
-				if (!image_scan.is_exact_index (ind) || klabels[ind] == -1)
+				if (!image_scan.is_exact_index (ind) || state.labels[ind] == -1)
 				{
 					ind++;
 					continue;
@@ -616,22 +518,15 @@ void SLIC::PerformSuperpixelSLIC(
 				temp_y.convertTo (r);
 
 #else
-				temp_l = m_lvec[c + m_width*r];
-				temp_a = m_avec[c + m_width*r];
-				temp_b = m_bvec[c + m_width*r];
-				temp_x = c;
-				temp_y = r;
+				Pixel temp (
+						img.data[c + img.width*r].l,
+						img.data[c + img.width*r].a,
+						img.data[c + img.width*r].b,
+						c,
+						r);
 #endif
-
-				sigmal[klabels[ind]] = sigmal[klabels[ind]] + temp_l;
-				sigmaa[klabels[ind]] = sigmaa[klabels[ind]] + temp_a;
-				sigmab[klabels[ind]] = sigmab[klabels[ind]] + temp_b;
-				sigmax[klabels[ind]] = sigmax[klabels[ind]] + temp_x;
-				sigmay[klabels[ind]] = sigmay[klabels[ind]] + temp_y;
-				//------------------------------------
-				//edgesum[klabels[ind]] += edgemag[ind];
-				//------------------------------------
-				clustersize[klabels[ind]] = clustersize[klabels[ind]] + one;
+				sigma[state.labels[ind]] = sigma[state.labels[ind]] + temp;
+				clustersize[state.labels[ind]] = clustersize[state.labels[ind]] + one;
 				ind++;
 			}
 		}}
@@ -639,44 +534,13 @@ void SLIC::PerformSuperpixelSLIC(
 		{for( int k = 0; k < numk; k++ )
 		{
 			if( clustersize[k] <= zero ) clustersize[k] = 1;
-			inv[k] = one/clustersize[k];//computing inverse now to multiply, than divide later
-		}}
 
-		{for( int k = 0; k < numk; k++ )
-		{
-			kseedsl[k] = sigmal[k]*inv[k];
-			kseedsa[k] = sigmaa[k]*inv[k];
-			kseedsb[k] = sigmab[k]*inv[k];
-			kseedsx[k] = sigmax[k]*inv[k];
-			kseedsy[k] = sigmay[k]*inv[k];
-			//------------------------------------
-			//edgesum[k] *= inv[k];
-			//------------------------------------
+			inv = one/clustersize[k];//computing inverse now to multiply, than divide later
+
+			state.cluster_centers[k] = sigma[k] * inv;
 		}}
 	}
 
-	if (args.stateful)
-	{
-#ifdef APPROXIMATION
-
-#else
-		state.kseedsl = kseedsl_arg;
-		state.kseedsa = kseedsa_arg;
-		state.kseedsb = kseedsb_arg;
-		state.kseedsx = kseedsx_arg;
-		state.kseedsy = kseedsy_arg;
-#endif
-		int sz = m_width*m_height;
-
-		if (state.klabels == NULL)
-			state.klabels = new int[sz];
-
-		for (int i=0; i<sz; i++)
-			state.klabels[i] = klabels[i];
-
-		state.is_init = true;
-		state.superpixels = numk;
-	}
 }
 
 //===========================================================================
@@ -686,14 +550,15 @@ void SLIC::PerformSuperpixelSLIC(
 ///		2. if a certain component is too small, assigning the previously found
 ///		    adjacent label to this component, and not incrementing the label.
 //===========================================================================
-void SLIC::EnforceLabelConnectivity(
-		const int*					labels,//input labels that need to be corrected to remove stray labels
-		const int					width,
-		const int					height,
-		int*&						nlabels,//new labels
-		int&						numlabels,//the number of labels changes in the end if segments are removed
-		const int&					K) //the number of superpixels desired by the user
+int SLIC::EnforceLabelConnectivity()
 {
+	const int K = args.numlabels;  //the number of superpixels desired by the user
+	int numlabels;	//the number of labels changes in the end if segments are removed
+
+	int width = img.width;
+	int height = img.height;
+	vector<int> existing_labels = state.labels;
+
 	//	const int dx8[8] = {-1, -1,  0,  1, 1, 1, 0, -1};
 	//	const int dy8[8] = { 0, -1, -1, -1, 0, 1, 1,  1};
 
@@ -702,8 +567,7 @@ void SLIC::EnforceLabelConnectivity(
 
 	const int sz = width*height;
 	const int SUPSZ = sz/K;
-	//nlabels.resize(sz, -1);
-	for( int i = 0; i < sz; i++ ) nlabels[i] = -1;
+	state.labels.assign(sz, -1);
 	int label(0);
 	int* xvec = new int[sz];
 	int* yvec = new int[sz];
@@ -713,9 +577,9 @@ void SLIC::EnforceLabelConnectivity(
 	{
 		for( int k = 0; k < width; k++ )
 		{
-			if( 0 > nlabels[oindex] )
+			if( 0 > state.labels[oindex] )
 			{
-				nlabels[oindex] = label;
+				state.labels[oindex] = label;
 				//--------------------
 				// Start a new segment
 				//--------------------
@@ -731,7 +595,7 @@ void SLIC::EnforceLabelConnectivity(
 					if( (x >= 0 && x < width) && (y >= 0 && y < height) )
 					{
 						int nindex = y*width + x;
-						if(nlabels[nindex] >= 0) adjlabel = nlabels[nindex];
+						if(state.labels[nindex] >= 0) adjlabel = state.labels[nindex];
 					}
 				}}
 
@@ -747,11 +611,11 @@ void SLIC::EnforceLabelConnectivity(
 						{
 							int nindex = y*width + x;
 
-							if( 0 > nlabels[nindex] && labels[oindex] == labels[nindex] )
+							if( 0 > state.labels[nindex] && existing_labels[oindex] == existing_labels[nindex] )
 							{
 								xvec[count] = x;
 								yvec[count] = y;
-								nlabels[nindex] = label;
+								state.labels[nindex] = label;
 								count++;
 							}
 						}
@@ -767,7 +631,7 @@ void SLIC::EnforceLabelConnectivity(
 					for( int c = 0; c < count; c++ )
 					{
 						int ind = yvec[c]*width+xvec[c];
-						nlabels[ind] = adjlabel;
+						state.labels[ind] = adjlabel;
 					}
 					label--;
 				}
@@ -780,99 +644,7 @@ void SLIC::EnforceLabelConnectivity(
 
 	if(xvec) delete [] xvec;
 	if(yvec) delete [] yvec;
+
+	return numlabels;
 }
 
-
-
-//===========================================================================
-///	DoSuperpixelSegmentation_ForGivenSuperpixelSize
-///
-/// The input parameter ubuff conains RGB values in a 32-bit unsigned integers
-/// as follows:
-///
-/// [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]  [1 1 1 1 1 1 1 1]
-///
-///        Nothing              R                 G                  B
-///
-/// The RGB values are accessed from (and packed into) the unsigned integers
-/// using bitwise operators as can be seen in the function DoRGBtoLABConversion().
-///
-/// compactness value depends on the input pixels values. For instance, if
-/// the input is greyscale with values ranging from 0-100, then a compactness
-/// value of 20.0 would give good results. A greater value will make the
-/// superpixels more compact while a smaller value would make them more uneven.
-///
-/// The labels can be saved if needed using SaveSuperpixelLabels()
-//===========================================================================
-void SLIC::DoSuperpixelSegmentation_ForGivenSuperpixelStep(
-		const unsigned int*                             ubuff,
-		const int					width,
-		const int					height,
-		int*&						klabels,
-		CUSTOMSLIC_ARGS & 								args)
-{
-	//------------------------------------------------
-	const int STEP = args.region_size;
-	//------------------------------------------------
-	vector<float> kseedsl(0);
-	vector<float> kseedsa(0);
-	vector<float> kseedsb(0);
-	vector<float> kseedsx(0);
-	vector<float> kseedsy(0);
-
-	//--------------------------------------------------
-	m_width  = width;
-	m_height = height;
-	int sz = m_width*m_height;
-	//klabels.resize( sz, -1 );
-	//--------------------------------------------------
-	klabels = new int[sz];
-	for( int s = 0; s < sz; s++ ) klabels[s] = -1;
-	//--------------------------------------------------
-	if(args.color > 0)//LAB, the default option
-	{
-		DoRGBtoLABConversion(ubuff, m_lvec, m_avec, m_bvec);
-	}
-	else//RGB
-	{
-		m_lvec = new float[sz]; m_avec = new float[sz]; m_bvec = new float[sz];
-		for( int i = 0; i < sz; i++ )
-		{
-			m_lvec[i] = ubuff[i] >> 16 & 0xff;
-			m_avec[i] = ubuff[i] >>  8 & 0xff;
-			m_bvec[i] = ubuff[i]       & 0xff;
-		}
-	}
-	//--------------------------------------------------
-	vector<float> edgemag(0);
-	if(args.perturbseeds) DetectLabEdges(m_lvec, m_avec, m_bvec, m_width, m_height, edgemag);
-	GetLABXYSeeds_ForGivenStepSize(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, STEP, args.perturbseeds, edgemag);
-
-	PerformSuperpixelSLIC(kseedsl, kseedsa, kseedsb, kseedsx, kseedsy, klabels, args);
-	//args.numlabels = kseedsl.size();
-
-	// We want to do this out of this function.
-	if (false)
-	{
-		int* nlabels = new int[sz];
-		EnforceLabelConnectivity(klabels, m_width, m_height, nlabels, args.numlabels, float(sz)/float(STEP*STEP));
-		{for(int i = 0; i < sz; i++ ) klabels[i] = nlabels[i];}
-		if(nlabels) delete [] nlabels;
-	}
-}
-
-
-void SLIC::EnforceLabelConnectivity_extended (
-		int*					klabels,//input labels that need to be corrected to remove stray labels
-		const int					width,
-		const int					height,
-		const int&					num_sp_desired, //the number of superpixels desired by the user)
-		int&						numlabels_out)//the number of labels changes in the end if segments are removed
-{
-	int sz = width*height;
-	int* nlabels = new int[sz];
-	EnforceLabelConnectivity(klabels, width, height, nlabels, numlabels_out, num_sp_desired);
-	{for(int i = 0; i < sz; i++ ) klabels[i] = nlabels[i];}
-	if(nlabels) delete [] nlabels;
-
-}

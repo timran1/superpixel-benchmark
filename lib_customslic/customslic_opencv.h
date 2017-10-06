@@ -42,16 +42,18 @@
 class CUSTOMSLIC_OpenCV {
 public:
 
-    static void computeSuperpixels(const cv::Mat &image, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
+    void computeSuperpixels_extended(const cv::Mat &image, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
 
-    static void EnforceLabelConnectivity_extended (cv::Mat &labels, CUSTOMSLIC_ARGS& args);
+    void reset ();
 
-    static void computeSuperpixels_extended(const cv::Mat &image, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
-
-
+    // Image helper functions. Maybe these can be moved somewhere else.
     static void getLabelContourMask(const cv::Mat &mat,
             cv::Mat &labels, cv::OutputArray _mask, bool _thick_line);
 
+public:
+    void computeSuperpixels(SLIC& slic, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
+    vector<SLIC> slics;
+    vector<Image> imgs;
 };
 
 #endif	/* SLIC_OPENCV_H */
