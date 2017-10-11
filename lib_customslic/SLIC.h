@@ -20,6 +20,8 @@
 #include <string>
 #include <algorithm>
 #include <opencv2/opencv.hpp>
+#include <memory>
+
 using namespace std;
 
 class CUSTOMSLIC_ARGS {
@@ -31,6 +33,7 @@ public:
 	bool one_sided_padding;
 	vector<int> access_pattern;
 	int numlabels;	// = superpixels in main.cpp
+	float target_error;
 
 	// We generally do not change these.
 	float compactness;
@@ -97,6 +100,14 @@ public:
 		out.y = this->y * rhs;
 
 		return out;
+	}
+
+	float
+	getXYDistSqFrom (const Pixel & rhs)
+	{
+		float x_diff = x - rhs.x;
+		float y_diff = y - rhs.y;
+		return (x_diff * x_diff) + (y_diff * y_diff);
 	}
 };
 
@@ -178,27 +189,63 @@ public:
 
 	void updateRegionSizeFromSuperpixels(int sz, int numlabels)
 	{
-		region_size = (0.5f + std::sqrt(float (sz) / (float) numlabels));
+		if (numlabels > 0)
+			region_size = (0.5f + std::sqrt(float (sz) / (float) numlabels));
 	}
 };
+
+class IterationState
+{
+public:
+	float iteration_error;
+	vector<float> clustersize;
+	vector<float> distvec;
+	int iter_num;
+
+	IterationState ()
+	{
+		reset ();
+	}
+
+	void init (int sz, int numlabels)
+	{
+		clustersize.assign(numlabels, 0);
+		distvec.assign(sz, DBL_MAX);
+		iter_num = 0;
+	}
+
+	void reset ()
+	{
+		clustersize.clear ();
+		distvec.clear ();
+		iteration_error = FLT_MAX;
+		iter_num = 0;
+	}
+};
+
 
 class SLIC  
 {
 protected:
-	Image& img;
+	shared_ptr<Image> img;
 	CUSTOMSLIC_ARGS& args;
 public:
 	State state;
+	IterationState iter_state;
 
-	SLIC(Image& img, CUSTOMSLIC_ARGS& args);
+	SLIC(shared_ptr<Image> img, CUSTOMSLIC_ARGS& args);
 	virtual ~SLIC();
 
-	void setImage (Image& img) { this->img = img; }
+	void setImage (shared_ptr<Image> img) { this->img = img; }
+	void initIterationState ()
+	{
+		iter_state.init (img->width * img->height, state.cluster_centers.size ());
+	}
 
 	//============================================================================
 	// The main SLIC algorithm for generating superpixels
 	//============================================================================
-	void PerformSuperpixelSLIC();
+	void PerformSuperpixelSLICIteration(int itr);
 
 	//============================================================================
 	// Post-processing of SLIC segmentation, to avoid stray labels.

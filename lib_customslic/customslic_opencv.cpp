@@ -41,21 +41,59 @@
 #include "stdio.h"
 using namespace cv;
 
+CUSTOMSLIC_OpenCV::CUSTOMSLIC_OpenCV (bool plot) : plotter (10)
+{
+	this->plot = plot;
+	if (plot)
+	{
+		// Set the plot
+		plotter.pre_plot_cmds =
+		"set multiplot layout 2, 1 title \"Adaptive SLIC\" font \",14\" \n"
+		"set tmargin 3 \n";
+		plotter.post_plot_cmds = "unset multiplot \n";
+
+		// Error plot
+		plotter.plots["plot1"] = Plot ("Error - avg cluster movement (per cluster per search area pixel)");
+		plotter.plots["plot1"].pre_plot_cmds = "set key left bottom \n";
+		plotter.plots["plot1"].series["error"] = DataSeries (" ", "Error", "line", 500);
+		plotter.plots["plot1"].series["target"] = DataSeries (" ", "Target", "line", 500);
+
+		// Iterations plot
+		plotter.plots["plot2"] = Plot ("Iterations");
+		plotter.plots["plot2"].pre_plot_cmds = "unset key\n";
+		plotter.plots["plot2"].series["iter"] = DataSeries ("[ ] [0:]", "Iterations", "boxes fs solid ", 500);
+	}
+}
+
 void CUSTOMSLIC_OpenCV::reset ()
 {
 	slics.clear ();
 	imgs.clear ();
 }
 
-void CUSTOMSLIC_OpenCV::computeSuperpixels(SLIC& slic, cv::Mat &labels, CUSTOMSLIC_ARGS& args) {
+void CUSTOMSLIC_OpenCV::computeSuperpixels(shared_ptr<SLIC> slic, cv::Mat &labels, CUSTOMSLIC_ARGS& args) {
 
 	// Main operation
-	slic.PerformSuperpixelSLIC();
+	slic->initIterationState ();
+
+	int itr = 0;
+	for(; itr < args.iterations; itr++ )
+	{
+		slic->PerformSuperpixelSLICIteration(itr);
+
+		// post iteration hook.
+		if (slic->iter_state.iteration_error > args.target_error)
+			break;
+	}
 
     // Post processing
-    slic.EnforceLabelConnectivity ();
+    slic->EnforceLabelConnectivity ();
 
-    slic.GetLabelsMat (labels);
+    slic->GetLabelsMat (labels);
+
+    SuperpixelTools::relabelConnectedSuperpixels(labels);
+
+    // post tile SLIC hook.
 }
 
 void showMat (cv::Mat mat, std::string label)
@@ -67,45 +105,44 @@ void showMat (cv::Mat mat, std::string label)
     cv::imshow(label.c_str (), adjMap); cv::waitKey(0);
 }
 
-void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat_rgb, cv::Mat &labels, CUSTOMSLIC_ARGS& args) {
+void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat mat_rgb, cv::Mat &labels, CUSTOMSLIC_ARGS& args) {
     
     bool tiling = args.tile_square_side > 0;
 
-    int unconnected_components = 0;
-
     // Convert image to CIE LAB color space.
     cv::Mat mat_lab = SLIC::DoRGBtoLABConversion (mat_rgb);
-
-    // Clean up images from last frame, if any.
-	imgs.clear ();
 
     if (!tiling)
     {
 
         // Convert image to format suitable for SLIC algo.
-    	imgs.push_back (Image (mat_lab, mat_lab.cols, mat_lab.rows));
+    	imgs.push_back (make_shared<Image> (mat_lab, mat_lab.cols, mat_lab.rows));
 
     	// Make a new SLIC segmentor if this is first call to this function.
         if (slics.size () == 0)
         {
-        	slics.push_back (SLIC (imgs.back (), args));
+        	slics.push_back (make_shared<SLIC> (imgs.back (), args));
 
         	// set initial seeds
-        	slics.back ().SetInitialSeeds ();
+        	slics.back ()->SetInitialSeeds ();
         }
         else
         	// Update reference to new image for existing SLICs
-        	slics.back ().setImage (imgs.back ());
+        	slics.back ()->setImage (imgs.back ());
 
         computeSuperpixels(slics.back (), labels, args);
 
-        unconnected_components = SuperpixelTools::relabelConnectedSuperpixels(labels);
+		if (plot)
+		{
+			auto slic = slics.back ();
+			plotter.plots["plot1"].series["error"].add_point (slic->iter_state.iteration_error);
+			plotter.plots["plot2"].series["iter"].add_point (slic->iter_state.iter_num);
+		}
     }
     else
     {
 
         int square_side = args.tile_square_side;
-        int original_num_sps = args.numlabels;	//for backup.
 
     	args.one_sided_padding = false;
 
@@ -115,9 +152,6 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat_rgb, cv::
         int padding_c_left = args.one_sided_padding ? 0 : padding_c / 2;
         int padding_r = square_side - (mat_lab.rows % square_side);
         int padding_r_up = args.one_sided_padding ? 0 : padding_r / 2;
-
-        // Calculate total padding pixels:
-        // int padding_pixels = padding_c * square_side + padding_r * mat_lab.cols;
 
         // pad image and labels to make full squares
         padded_mat.create(mat_lab.rows + padding_r, mat_lab.cols + padding_c, mat_lab.type());
@@ -140,7 +174,7 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat_rgb, cv::
 
                 mat_segs.push_back (region);
                 labels_segs.push_back (cv::Mat ());
-                imgs.push_back (Image (mat_segs.back (), mat_segs.back ().cols, mat_segs.back ().rows));
+                imgs.push_back (make_shared<Image> (mat_segs.back (), mat_segs.back ().cols, mat_segs.back ().rows));
             }
         }
 
@@ -156,38 +190,44 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat_rgb, cv::
         {
 			for (int i = 0; i< num_segments; i++)
 			{
-				slics.push_back (SLIC (imgs[i], args));
+				slics.push_back (make_shared<SLIC> (imgs[i], args));
 
 				// This is the *expected* region size of each SP.
-				slics.back ().state.updateRegionSizeFromSuperpixels (mat_lab.rows * mat_lab.cols, args.numlabels);
+				slics.back ()->state.updateRegionSizeFromSuperpixels (mat_lab.rows * mat_lab.cols, args.numlabels);
 
             	// set initial seeds
-				slics.back ().SetInitialSeeds ();
+				slics.back ()->SetInitialSeeds ();
 			}
         }
         else
         {
         	// Update reference to new image for existing SLICs
 			for (int i = 0; i< num_segments; i++)
-				slics[i].setImage (imgs[i]);
+				slics[i]->setImage (imgs[i]);
         }
 
         int num_sp_so_far = 0;
         for (int i=0; i<num_segments; i++)
         {
-            computeSuperpixels(slics[i], labels_segs[i], args);
+        	if (slics[i]->state.cluster_centers.size () > 0)
+				computeSuperpixels(slics[i], labels_segs[i], args);
+        	else
+        	{
+        		// Scan region is bigger than the tile size. Cannot run algo, simply
+        		// return the whole tile as a single SP.
+        		labels_segs[i].create(mat_segs[i].rows, mat_segs[i].cols, CV_32SC1);
+        		labels_segs[i].setTo(cv::Scalar::all(i));
+        	}
 
             //showMat (mat_segs[i], "labels");
             //showMat (labels_segs[i], "labels");
-
-            unconnected_components = SuperpixelTools::relabelConnectedSuperpixels(labels_segs[i]);
 
             // Increment the label numbers with the number of SPs generated so far.
             int num_sp_generated = SuperpixelTools::countSuperpixels(labels_segs[i]);
             labels_segs[i] += Scalar(num_sp_so_far);
             num_sp_so_far += num_sp_generated;
         }
-        
+
         // join label segments
         int i = 0;
         for (int r = 0; r <= (padded_mat.rows - square_side); r += square_side)
@@ -200,17 +240,37 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat &mat_rgb, cv::
         }
         // Extract out only the required region from labels
         labels = padded_labels (Rect (padding_c_left, padding_r_up, mat_lab.cols, mat_lab.rows));
+
         //showMat (labels, "labels");
-
-        args.numlabels = original_num_sps;
-
-        //printf ("args.numlabels=%d\n", args.numlabels);
         //printf ("num_sp_so_far at end=%d\n", num_sp_so_far);
+
+        if (plot)
+		{
+			float total_error = 0;
+			float total_iter = 0;
+			for (auto& slic:slics)
+			{
+				total_error += slic->iter_state.iteration_error;
+				total_iter += slic->iter_state.iter_num;
+			}
+			plotter.plots["plot1"].series["error"].add_point (total_error/slics.size ());
+			plotter.plots["plot2"].series["iter"].add_point (total_iter/slics.size ());
+		}
     }
+
+    // post image SLIC hook.
+    if (plot)
+    {
+    	plotter.plots["plot1"].series["target"].add_point (args.target_error);
+    	plotter.do_plot ();
+    }
+
+    // Cleanups
+    imgs.clear ();
 
 }
 
-void CUSTOMSLIC_OpenCV::getLabelContourMask(const cv::Mat &mat, cv::Mat &labels, cv::OutputArray _mask, bool _thick_line)
+void CUSTOMSLIC_OpenCV::getLabelContourMask(const cv::Mat mat, cv::Mat labels, cv::OutputArray _mask, bool _thick_line)
 {
     // default width
     int line_width = 2;

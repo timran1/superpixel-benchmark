@@ -82,7 +82,10 @@ int main(int argc, const char** argv) {
 		("small-video", "Set camera frame size = 320x240")
 		("stateful", "Use state from previous frame")
 		("tile-size", boost::program_options::value<int>()->default_value(0), "Size of side of tile square")
-	    ("pyramid-pattern", boost::program_options::value<std::string>(), "access pattern for reverse pyramid approach");
+	    ("pyramid-pattern", boost::program_options::value<std::string>(), "access pattern for reverse pyramid approach")
+	    ("target-error", boost::program_options::value<double>()->default_value(1.0), "target error to attempt, unless num iterations complete first.")
+	    ("plot", "Plot iteration and error graphs.");
+
         
     boost::program_options::positional_options_description positionals;
     positionals.add("input", 1);
@@ -148,6 +151,12 @@ int main(int argc, const char** argv) {
     	access_pattern.back () = 1;
     }
 
+    bool plot_graphs = false;
+    if (parameters.find("plot") != parameters.end()) {
+        // We want a camera feed.
+    	plot_graphs = true;
+    }
+
     bool wordy = false;
     if (parameters.find("wordy") != parameters.end()) {
         wordy = true;
@@ -160,7 +169,7 @@ int main(int argc, const char** argv) {
     bool perturb_seeds = perturb_seeds_int > 0 ? true : false;
     int color_space = parameters["color-space"].as<int> ();
     int tile_size = parameters["tile-size"].as<int> ();
-    
+    double target_error = parameters["target-error"].as<double>();
 
     CUSTOMSLIC_ARGS args;
     args.iterations = iterations;
@@ -170,6 +179,7 @@ int main(int argc, const char** argv) {
     args.stateful = stateful;
     args.numlabels = superpixels;
     args.tile_square_side = tile_size;
+    args.target_error = target_error;
 
     if (access_pattern.size() > 0)
     {
@@ -212,15 +222,17 @@ int main(int argc, const char** argv) {
 
         const char* window_name = "SLIC Superpixels";
 
+        int target_error_factor = (target_error-0.999) * 1000 * 1000;
+
         cv::namedWindow(window_name, 0);
         cv::createTrackbar("Superpixels", window_name, &superpixels, 10000, 0);
         cv::createTrackbar("Iterations", window_name, &iterations, 12, 0);
+        cv::createTrackbar("Target Error (0.999-1.000)", window_name, &target_error_factor, 1000, 0);
 
-        cv::Mat result, mask;
-
-        CUSTOMSLIC_OpenCV custom_slic;
+        CUSTOMSLIC_OpenCV custom_slic (plot_graphs);
         for (;;)
         {
+            cv::Mat result, mask;
             cv::Mat image;
             cv::Mat labels;
 
@@ -237,6 +249,7 @@ int main(int argc, const char** argv) {
 
             args.iterations = iterations;
             args.numlabels = superpixels;
+            args.target_error = float (target_error_factor)/10000000 + 0.9999;
 
             // Capture a frame.
             cap >> image;
@@ -262,6 +275,12 @@ int main(int argc, const char** argv) {
 
 			float display = timer.elapsed();
             std::cout << "Size: " << result.cols << "x" << result.rows << " - Time: " << elapsed << "s - Display: " << display << "s" << std::endl;
+
+            // Cleanups
+            labels.release ();
+            image.release ();
+            result.release ();
+            mask.release ();
 
 			// Wait for some inputs and prepare for next time.
             int c = cv::waitKey(1) & 0xff;
@@ -297,7 +316,7 @@ int main(int argc, const char** argv) {
             args.stateful = false;	// No statefulness needed for pictures
 
             boost::timer timer;
-            CUSTOMSLIC_OpenCV custom_slic;
+            CUSTOMSLIC_OpenCV custom_slic (false);
             custom_slic.computeSuperpixels_extended(image, labels, args);
             float elapsed = timer.elapsed();
             total += elapsed;

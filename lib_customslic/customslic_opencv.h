@@ -35,25 +35,29 @@
 #include <opencv2/opencv.hpp>
 
 #include "SLIC.h"
+#include "plotter.h"
 
 /** \brief Wrapper for running SLIC on OpenCV images.
  * \author David Stutz
  */
 class CUSTOMSLIC_OpenCV {
 public:
+	CUSTOMSLIC_OpenCV (bool plot);
 
-    void computeSuperpixels_extended(const cv::Mat &image, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
+    void computeSuperpixels_extended(const cv::Mat image, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
 
     void reset ();
 
     // Image helper functions. Maybe these can be moved somewhere else.
-    static void getLabelContourMask(const cv::Mat &mat,
-            cv::Mat &labels, cv::OutputArray _mask, bool _thick_line);
+    static void getLabelContourMask(const cv::Mat mat,
+            cv::Mat labels, cv::OutputArray _mask, bool _thick_line);
 
 public:
-    void computeSuperpixels(SLIC& slic, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
-    vector<SLIC> slics;
-    vector<Image> imgs;
+    void computeSuperpixels(shared_ptr<SLIC>, cv::Mat &labels, CUSTOMSLIC_ARGS& args);
+    vector<shared_ptr<SLIC>> slics;
+    vector<shared_ptr<Image>> imgs;
+    Plotter plotter;
+    bool plot;
 };
 
 #endif	/* SLIC_OPENCV_H */

@@ -32,9 +32,10 @@ cmake_minimum_required (VERSION 2.8)
 project (superpixel_benchmark)
 
 find_package(OpenCV REQUIRED)
-find_package(Boost COMPONENTS system filesystem program_options REQUIRED)
+find_package(Boost COMPONENTS system filesystem program_options iostreams REQUIRED)
 
-set(CMAKE_CXX_FLAGS "-g -O0 -std=c++0x")
+#set(CMAKE_CXX_FLAGS "-g -O0 -std=c++0x")
+set(CMAKE_CXX_FLAGS "-O4 -std=c++0x")
 
 include_directories(../lib_eval/ ../lib_customslic/ ${OpenCV_INCLUDE_DIRS} 
         ${Boost_INCLUDE_DIRS})
