@@ -13,5 +13,6 @@ add_library(adaptive_slic
     adaptive_slic.cpp
     slic.cpp
     slic-utils.cpp
+    opencl-slic.cpp
 )
 target_link_libraries(adaptive_slic eval ${OpenCV_LIBRARIES})

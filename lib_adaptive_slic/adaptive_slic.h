@@ -43,18 +43,8 @@ public:
     static void get_labels_contour_mask(const cv::Mat mat,
             cv::Mat labels, cv::OutputArray _mask, bool _thick_line);
 
-	// sRGB to CIELAB conversion for 2-D images
-	static void do_rgb_to_lab_conversion(const cv::Mat &mat, cv::Mat &out, int padding_c_left, int padding_r_up);
-
 	// Adjust contrast and display MAT.
 	static void show_mat (cv::Mat mat, std::string label);
-
-private:
-	// sRGB to XYZ conversion; helper for RGB2LAB()
-	static void RGB2XYZ(const int sR, const int sG, const int sB, float& X, float& Y, float& Z);
-
-	// sRGB to CIELAB conversion (uses RGB2XYZ function)
-	static void RGB2LAB(const int sR, const int sG, const int sB, float& lval, float& aval, float& bval);
 };
 #endif	/* SLIC_OPENCV_H */
 

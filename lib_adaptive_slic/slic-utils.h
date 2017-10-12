@@ -1,6 +1,6 @@
 
-#if !defined(_SLIC_UTIL_H_INCLUDED_)
-#define _SLIC_UTIL_H_INCLUDED_
+#ifndef SLIC_UTIL_H_INCLUDED
+#define SLIC_UTIL_H_INCLUDED
 
 #include <vector>
 #include <string>

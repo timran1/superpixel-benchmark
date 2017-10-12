@@ -93,7 +93,7 @@ AdaptiveSlic::compute_superpixels (const cv::Mat mat_rgb, AdaptiveSlicArgs& args
     		image_mat = cv::Mat::zeros(mat_rgb.rows, mat_rgb.cols, CV_32FC3);
 
         // Convert image to CIE LAB color space.
-    	ImageUtils::do_rgb_to_lab_conversion (mat_rgb, image_mat, 0, 0);
+    	SLIC::do_rgb_to_lab_conversion (mat_rgb, image_mat, 0, 0);
 
         // Convert image to format suitable for SLIC algo.
         vector<shared_ptr<Image>> imgs;
@@ -144,7 +144,7 @@ AdaptiveSlic::compute_superpixels (const cv::Mat mat_rgb, AdaptiveSlicArgs& args
     		image_mat = cv::Mat::zeros(mat_rgb.rows + padding_r, mat_rgb.cols + padding_c, CV_32FC3);
 
 		// Convert image to CIE LAB color space.
-    	ImageUtils::do_rgb_to_lab_conversion (mat_rgb, image_mat, padding_c_left, padding_r_up);
+    	SLIC::do_rgb_to_lab_conversion (mat_rgb, image_mat, padding_c_left, padding_r_up);
 
 		// Create labels array to hold labels info
 		if (labels.rows != image_mat.rows)
@@ -301,89 +301,6 @@ ImageUtils::get_labels_contour_mask (const cv::Mat mat, cv::Mat labels, cv::Outp
         }
         mainindex++;
       }
-    }
-}
-
-void
-ImageUtils::RGB2XYZ (const int sR, const int sG, const int sB, float& X, float& Y, float& Z)
-{
-	// sRGB (D65 illuninant assumption) to XYZ conversion
-	float R = sR/255.0;
-	float G = sG/255.0;
-	float B = sB/255.0;
-
-	float r, g, b;
-
-	if(R <= 0.04045)	r = R/12.92;
-	else				r = pow((R+0.055)/1.055,2.4);
-	if(G <= 0.04045)	g = G/12.92;
-	else				g = pow((G+0.055)/1.055,2.4);
-	if(B <= 0.04045)	b = B/12.92;
-	else				b = pow((B+0.055)/1.055,2.4);
-
-	X = r*0.4124564 + g*0.3575761 + b*0.1804375;
-	Y = r*0.2126729 + g*0.7151522 + b*0.0721750;
-	Z = r*0.0193339 + g*0.1191920 + b*0.9503041;
-}
-
-void
-ImageUtils::RGB2LAB (const int sR, const int sG, const int sB, float& lval, float& aval, float& bval)
-{
-	// sRGB to XYZ conversion
-	float X, Y, Z;
-	RGB2XYZ(sR, sG, sB, X, Y, Z);
-
-	// XYZ to LAB conversion
-	float epsilon = 0.008856;	//actual CIE standard
-	float kappa   = 903.3;		//actual CIE standard
-
-	float Xr = 0.950456;	//reference white
-	float Yr = 1.0;		//reference white
-	float Zr = 1.088754;	//reference white
-
-	float xr = X/Xr;
-	float yr = Y/Yr;
-	float zr = Z/Zr;
-
-	float fx, fy, fz;
-	if(xr > epsilon)	fx = pow(xr, 1.0/3.0);
-	else				fx = (kappa*xr + 16.0)/116.0;
-	if(yr > epsilon)	fy = pow(yr, 1.0/3.0);
-	else				fy = (kappa*yr + 16.0)/116.0;
-	if(zr > epsilon)	fz = pow(zr, 1.0/3.0);
-	else				fz = (kappa*zr + 16.0)/116.0;
-
-	lval = 116.0*fy-16.0;
-	aval = 500.0*(fx-fy);
-	bval = 200.0*(fy-fz);
-}
-
-void
-ImageUtils::do_rgb_to_lab_conversion (const cv::Mat &mat, cv::Mat &out, int padding_c_left, int padding_r_up)
-{
-	assert (mat.rows+padding_r_up <= out.rows && mat.cols+padding_c_left <= out.cols);
-
-	// Ranges:
-	// L in [0, 100]
-	// A in [-86.185, 98,254]
-	// B in [-107.863, 94.482]
-
-    for (int i = 0; i < mat.rows; ++i) {
-        for (int j = 0; j < mat.cols; ++j) {
-
-            int b = mat.at<cv::Vec3b>(i,j)[0];
-            int g = mat.at<cv::Vec3b>(i,j)[1];
-            int r = mat.at<cv::Vec3b>(i,j)[2];
-
-            int arr_index = j + mat.cols*i;
-
-            float l_out, a_out, b_out;
-    		RGB2LAB( r, g, b, l_out, a_out, b_out);
-
-    		out.at<cv::Vec3f>(i+padding_r_up,j+padding_c_left)[0] = l_out;
-    		out.at<cv::Vec3f>(i+padding_r_up,j+padding_c_left)[1] = a_out;
-    		out.at<cv::Vec3f>(i+padding_r_up,j+padding_c_left)[2] = b_out;
-        }
     }
 }
 

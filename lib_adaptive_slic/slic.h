@@ -1,8 +1,9 @@
 
-#if !defined(_SLIC_H_INCLUDED_)
-#define _SLIC_H_INCLUDED_
+#ifndef SLIC_H_INCLUDED
+#define SLIC_H_INCLUDED
 
 #include "slic-utils.h"
+#include "opencl-slic.h"
 
 using namespace std;
 
@@ -35,6 +36,9 @@ public:
 	// Return a cv::Mat generated from state.labels.
 	void get_labels_mat (cv::Mat &labels);
 
+	// sRGB to CIELAB conversion for 2-D images
+	static void do_rgb_to_lab_conversion(const cv::Mat &mat, cv::Mat &out, int padding_c_left, int padding_r_up);
+
 private:
 	// Calculate distance between two points on image.
 	float calc_dist (const Pixel& p1, const Pixel& p2, float invwt);
@@ -51,6 +55,12 @@ private:
 
     // Detect color edges, to help PerturbSeeds()
     void detect_lab_edges (vector<float>& edges);
+
+	// sRGB to XYZ conversion; helper for RGB2LAB()
+	static void RGB2XYZ(const int sR, const int sG, const int sB, float& X, float& Y, float& Z);
+
+	// sRGB to CIELAB conversion (uses RGB2XYZ function)
+	static void RGB2LAB(const int sR, const int sG, const int sB, float& lval, float& aval, float& bval);
 
 };
 
