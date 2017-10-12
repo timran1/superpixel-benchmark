@@ -1,32 +1,4 @@
 #!/bin/bash
-# Copyright (c) 2016, David Stutz
-# Contact: david.stutz@rwth-aachen.de, davidstutz.de
-# All rights reserved.
-# 
-# Redistribution and use in source and binary forms, with or without modification,
-# are permitted provided that the following conditions are met:
-# 
-# 1. Redistributions of source code must retain the above copyright notice,
-#    this list of conditions and the following disclaimer.
-# 
-# 2. Redistributions in binary form must reproduce the above copyright notice,
-#    this list of conditions and the following disclaimer in the
-#    documentation and/or other materials provided with the distribution.
-# 
-# 3. Neither the name of the copyright holder nor the names of its contributors
-#    may be used to endorse or promote products derived from this software
-#    without specific prior written permission.
-# 
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-# THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 # Helper functions...
 
@@ -48,7 +20,7 @@ function list_include_item {
 
 #tuple = <algo>-<iterations>-<tile-size>-tuple
 
-#TUPLES_TO_UPDATE_LIST=("customslic-3-0-1*1*1-tuple")
+TUPLES_TO_UPDATE_LIST=("adaptive_slic-10-0-1*1*1-tuple")
 #TUPLES_TO_UPDATE_LIST=("slic-10")
 
 SUPERPIXELS=("200" "300" "400" "600" "800" "1000" "1200" "1400" "1600" "1800" "2000" "2400" "2800" "3200" "3600" "4000" "4600" "5200")
@@ -64,7 +36,7 @@ do
 	do
 		for PYRAMID_PATTERN in "${PYRAMID_PATTERN_LIST[@]}"
 		do
-			algo_tuple="customslic-$NUM_ITERATIONS-$SQUARE_SIDES-$PYRAMID_PATTERN-tuple"
+			algo_tuple="adaptive_slic-$NUM_ITERATIONS-$SQUARE_SIDES-$PYRAMID_PATTERN-tuple"
 			algo_tuples_list+=(${algo_tuple})
 		done
 	done
@@ -121,7 +93,7 @@ do
 
 		    ../bin/${algo}_cli ../data/BSDS500/images/test/ --superpixels $SUPERPIXEL -o ../output/${algo_tuple}/$SUPERPIXEL -w --iterations $iterations
 
-		elif [ "$algo" == "customslic" ]; then
+		elif [ "$algo" == "adaptive_slic" ]; then
 
 			../bin/${algo}_cli ../data/BSDS500/images/test/ \
 				--superpixels $SUPERPIXEL -o ../output/${algo_tuple}/$SUPERPIXEL -w \
