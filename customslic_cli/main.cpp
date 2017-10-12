@@ -195,10 +195,6 @@ int main(int argc, const char** argv) {
 
     if (use_camera || use_video_file)
     {
-
-        //args.tile_square_side = stateful ? 0 : tile_size;	// We do not support tiling with statefulness.
-
-
         int capture = 0; // Camera ID
 
         cv::VideoCapture cap;
@@ -232,9 +228,7 @@ int main(int argc, const char** argv) {
         CUSTOMSLIC_OpenCV custom_slic (plot_graphs);
         for (;;)
         {
-            cv::Mat result, mask;
-            cv::Mat image;
-            cv::Mat labels;
+            cv::Mat image, mask;
 
             // Update args for this frame.
             if (!args.stateful ||
@@ -255,32 +249,22 @@ int main(int argc, const char** argv) {
             cap >> image;
 
             if( image.empty() )
-            {
                 std::cout << "Empty frame received. Exiting..." << std::endl;
-            }
-
-            result = image;
 
             boost::timer timer;
 
-            custom_slic.computeSuperpixels_extended(image, labels, args);
+            custom_slic.computeSuperpixels_extended(image, args);
 
             float elapsed = timer.elapsed();
 
             // Create contours for display.
-            CUSTOMSLIC_OpenCV::getLabelContourMask(image, labels, mask, (superpixels < 1000));
-            result.setTo(cv::Scalar(0, 0, 255), mask);
+            CUSTOMSLIC_OpenCV::getLabelContourMask(image, custom_slic.get_labels (), mask, (superpixels < 1000));
+            image.setTo(cv::Scalar(0, 0, 255), mask);
 
-            cv::imshow(window_name, result);
+            cv::imshow(window_name, image);
 
 			float display = timer.elapsed();
-            std::cout << "Size: " << result.cols << "x" << result.rows << " - Time: " << elapsed << "s - Display: " << display << "s" << std::endl;
-
-            // Cleanups
-            labels.release ();
-            image.release ();
-            result.release ();
-            mask.release ();
+            std::cout << "Size: " << image.cols << "x" << image.rows << " - Time: " << elapsed << "s - Display: " << display << "s" << std::endl;
 
 			// Wait for some inputs and prepare for next time.
             int c = cv::waitKey(1) & 0xff;
@@ -311,27 +295,26 @@ int main(int argc, const char** argv) {
                 it != images.end(); ++it) {
 
             cv::Mat image = cv::imread(it->first);
-            cv::Mat labels;
 
             args.stateful = false;	// No statefulness needed for pictures
 
             boost::timer timer;
             CUSTOMSLIC_OpenCV custom_slic (false);
-            custom_slic.computeSuperpixels_extended(image, labels, args);
+            custom_slic.computeSuperpixels_extended(image, args);
             float elapsed = timer.elapsed();
             total += elapsed;
 
             if (!output_dir.empty()) {
                 boost::filesystem::path csv_file(output_dir
                         / boost::filesystem::path(prefix + it->second.stem().string() + ".csv"));
-                IOUtil::writeMatCSV<int>(csv_file, labels);
+                IOUtil::writeMatCSV<int>(csv_file, custom_slic.get_labels ());
             }
 
             if (!vis_dir.empty()) {
                 boost::filesystem::path contours_file(vis_dir
                         / boost::filesystem::path(prefix + it->second.stem().string() + ".png"));
                 cv::Mat image_contours;
-                Visualization::drawContours(image, labels, image_contours);
+                Visualization::drawContours(image, custom_slic.get_labels (), image_contours);
                 cv::imwrite(contours_file.string(), image_contours);
             }
         }

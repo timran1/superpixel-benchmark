@@ -43,6 +43,8 @@ using namespace cv;
 
 CUSTOMSLIC_OpenCV::CUSTOMSLIC_OpenCV (bool plot) : plotter (10)
 {
+    labels_rect = Rect (0,0,0,0);
+
 	this->plot = plot;
 	if (plot)
 	{
@@ -68,33 +70,17 @@ CUSTOMSLIC_OpenCV::CUSTOMSLIC_OpenCV (bool plot) : plotter (10)
 void CUSTOMSLIC_OpenCV::reset ()
 {
 	slics.clear ();
-	imgs.clear ();
+	labels.release ();
+    labels_rect = Rect (0,0,0,0);
+	image_mat = cv::Mat ();
 }
 
-void CUSTOMSLIC_OpenCV::computeSuperpixels(shared_ptr<SLIC> slic, cv::Mat &labels, CUSTOMSLIC_ARGS& args) {
-
-	// Main operation
-	slic->initIterationState ();
-
-	int itr = 0;
-	for(; itr < args.iterations; itr++ )
-	{
-		slic->PerformSuperpixelSLICIteration(itr);
-
-		// post iteration hook.
-		if (slic->iter_state.iteration_error > args.target_error)
-			break;
-	}
-
-    // Post processing
-    slic->EnforceLabelConnectivity ();
-
-    slic->GetLabelsMat (labels);
-
-    SuperpixelTools::relabelConnectedSuperpixels(labels);
-
-    // post tile SLIC hook.
+cv::Mat CUSTOMSLIC_OpenCV::get_labels ()
+{
+    // Extract out only the required region from labels
+    return labels (labels_rect);
 }
+
 
 void showMat (cv::Mat mat, std::string label)
 {
@@ -105,18 +91,56 @@ void showMat (cv::Mat mat, std::string label)
     cv::imshow(label.c_str (), adjMap); cv::waitKey(0);
 }
 
-void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat mat_rgb, cv::Mat &labels, CUSTOMSLIC_ARGS& args) {
+void CUSTOMSLIC_OpenCV::computeSuperpixels(shared_ptr<SLIC> slic, cv::Mat &labels_seg, CUSTOMSLIC_ARGS& args) {
+
+	// Main operation
+	slic->initIterationState ();
+
+	int itr = 0;
+	for(; itr < args.iterations; itr++ )
+	{
+		slic->PerformSuperpixelSLICIterationPPA ();
+
+		// post iteration hook.
+		if (slic->iter_state.iteration_error > args.target_error)
+			break;
+	}
+
+    // Post processing
+    slic->EnforceLabelConnectivity ();
+
+    slic->GetLabelsMat (labels_seg);
+
+    // Rename labels so they consist of continuously increasing
+    // numbers.
+    SuperpixelTools::relabelSuperpixels(labels_seg);
+
+}
+
+
+void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat mat_rgb, CUSTOMSLIC_ARGS& args) {
     
     bool tiling = args.tile_square_side > 0;
 
-    // Convert image to CIE LAB color space.
-    cv::Mat mat_lab = SLIC::DoRGBtoLABConversion (mat_rgb);
-
     if (!tiling)
     {
+    	// Create Mat to hold CIELAB format image.
+    	if (image_mat.rows != mat_rgb.rows)
+    		image_mat = cv::Mat::zeros(mat_rgb.rows, mat_rgb.cols, CV_32FC3);
+
+        // Convert image to CIE LAB color space.
+        SLIC::DoRGBtoLABConversion (mat_rgb, image_mat, 0, 0);
 
         // Convert image to format suitable for SLIC algo.
-    	imgs.push_back (make_shared<Image> (mat_lab, mat_lab.cols, mat_lab.rows));
+        vector<shared_ptr<Image>> imgs;
+    	imgs.push_back (make_shared<Image> (image_mat, image_mat.cols, image_mat.rows));
+
+    	// Create labels array to hold labels info
+    	if (labels.rows != image_mat.rows)
+    	{
+    		labels.create (image_mat.rows, image_mat.cols, CV_32SC1);
+		    labels_rect = Rect (0, 0, image_mat.cols, image_mat.rows);
+    	}
 
     	// Make a new SLIC segmentor if this is first call to this function.
         if (slics.size () == 0)
@@ -141,40 +165,46 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat mat_rgb, cv::M
     }
     else
     {
-
         int square_side = args.tile_square_side;
 
     	args.one_sided_padding = false;
 
     	// Determine amount of padding required.
-        cv::Mat padded_mat;
-        int padding_c = square_side - (mat_lab.cols % square_side);
-        int padding_c_left = args.one_sided_padding ? 0 : padding_c / 2;
-        int padding_r = square_side - (mat_lab.rows % square_side);
-        int padding_r_up = args.one_sided_padding ? 0 : padding_r / 2;
+    	int padding_c = square_side - (mat_rgb.cols % square_side);
+    	int padding_c_left = args.one_sided_padding ? 0 : padding_c / 2;
+		int padding_r = square_side - (mat_rgb.rows % square_side);
+		int padding_r_up = args.one_sided_padding ? 0 : padding_r / 2;
 
-        // pad image and labels to make full squares
-        padded_mat.create(mat_lab.rows + padding_r, mat_lab.cols + padding_c, mat_lab.type());
-        padded_mat.setTo(cv::Scalar::all(0));
-        mat_lab.copyTo (padded_mat (Rect (padding_c_left, padding_r_up, mat_lab.cols, mat_lab.rows)));
+    	// Create Mat to hold CIELAB format image.
+    	if (image_mat.rows != mat_rgb.rows)
+    		image_mat = cv::Mat::zeros(mat_rgb.rows + padding_r, mat_rgb.cols + padding_c, CV_32FC3);
 
-        cv::Mat padded_labels (padded_mat.rows, padded_mat.cols, CV_32SC1);
+		// Convert image to CIE LAB color space.
+		SLIC::DoRGBtoLABConversion (mat_rgb, image_mat, padding_c_left, padding_r_up);
 
-        //imshow( "padded_labels", padded_mat ); //cv::waitKey(0);
+		// Create labels array to hold labels info
+		if (labels.rows != image_mat.rows)
+		{
+			labels.create (image_mat.rows, image_mat.cols, CV_32SC1);
+		    labels_rect = Rect (padding_c_left, padding_r_up, mat_rgb.cols, mat_rgb.rows);
+		}
+
         vector<cv::Mat> mat_segs;
         vector<cv::Mat> labels_segs;
+        vector<shared_ptr<Image>> imgs;
 
         // create square segments
-        for (int r = 0; r <= (padded_mat.rows - square_side); r += square_side)
+        for (int r = 0; r <= (image_mat.rows - square_side); r += square_side)
         {
-            for (int c = 0; c <= (padded_mat.cols - square_side); c += square_side)
+            for (int c = 0; c <= (image_mat.cols - square_side); c += square_side)
             {
-                cv::Mat region (square_side, square_side, padded_mat.type());
-                region = padded_mat (Rect (c, r, square_side, square_side));
+                // This only creates a reference to the bigger image (ROI)
+				cv::Mat region = image_mat (Rect (c, r, square_side, square_side));
+            	cv::Mat label_region = labels (Rect (c, r, square_side, square_side));
 
-                mat_segs.push_back (region);
-                labels_segs.push_back (cv::Mat ());
-                imgs.push_back (make_shared<Image> (mat_segs.back (), mat_segs.back ().cols, mat_segs.back ().rows));
+				mat_segs.push_back (region);
+                labels_segs.push_back (label_region);
+                imgs.push_back (make_shared<Image> (region, region.cols, region.rows));
             }
         }
 
@@ -193,7 +223,7 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat mat_rgb, cv::M
 				slics.push_back (make_shared<SLIC> (imgs[i], args));
 
 				// This is the *expected* region size of each SP.
-				slics.back ()->state.updateRegionSizeFromSuperpixels (mat_lab.rows * mat_lab.cols, args.numlabels);
+				slics.back ()->state.updateRegionSizeFromSuperpixels (mat_rgb.rows * mat_rgb.cols, args.numlabels);
 
             	// set initial seeds
 				slics.back ()->SetInitialSeeds ();
@@ -215,7 +245,6 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat mat_rgb, cv::M
         	{
         		// Scan region is bigger than the tile size. Cannot run algo, simply
         		// return the whole tile as a single SP.
-        		labels_segs[i].create(mat_segs[i].rows, mat_segs[i].cols, CV_32SC1);
         		labels_segs[i].setTo(cv::Scalar::all(i));
         	}
 
@@ -223,26 +252,13 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat mat_rgb, cv::M
             //showMat (labels_segs[i], "labels");
 
             // Increment the label numbers with the number of SPs generated so far.
-            int num_sp_generated = SuperpixelTools::countSuperpixels(labels_segs[i]);
+        	// Post processing can only decrease number of SPs, not increase it.
+            int num_sp_generated = slics[i]->state.cluster_centers.size ();
             labels_segs[i] += Scalar(num_sp_so_far);
             num_sp_so_far += num_sp_generated;
         }
 
-        // join label segments
-        int i = 0;
-        for (int r = 0; r <= (padded_mat.rows - square_side); r += square_side)
-        {
-            for (int c = 0; c <= (padded_mat.cols - square_side); c += square_side)
-            {
-                labels_segs[i].copyTo (padded_labels (Rect (c, r, square_side, square_side)));
-                i++;
-            }
-        }
-        // Extract out only the required region from labels
-        labels = padded_labels (Rect (padding_c_left, padding_r_up, mat_lab.cols, mat_lab.rows));
-
         //showMat (labels, "labels");
-        //printf ("num_sp_so_far at end=%d\n", num_sp_so_far);
 
         if (plot)
 		{
@@ -264,9 +280,6 @@ void CUSTOMSLIC_OpenCV::computeSuperpixels_extended(const cv::Mat mat_rgb, cv::M
     	plotter.plots["plot1"].series["target"].add_point (args.target_error);
     	plotter.do_plot ();
     }
-
-    // Cleanups
-    imgs.clear ();
 
 }
 

@@ -59,57 +59,133 @@ public:
 class Pixel
 {
 public:
-	float l;
-	float a;
-	float b;
-	float x;
-	float y;
-
-	Pixel() : l (0), a (0), b(0), x (0), y (0) {}
-
+	float data[5];
+	Pixel ()
+	{
+		data[0] = 0;
+		data[1] = 0;
+		data[2] = 0;
+		data[3] = 0;
+		data[4] = 0;
+	}
 	Pixel (	float l, float a, float b, float x, float y)
-		: l (l), a (a), b(b), x (x), y (y)
-	{ 	}
+	{
+		data[0] = l;
+		data[1] = a;
+		data[2] = b;
+		data[3] = x;
+		data[4] = y;
+	}
+
+	float& l () {return data[0];}
+	float& a () {return data[1];}
+	float& b () {return data[2];}
+	float& x () {return data[3];}
+	float& y () {return data[4];}
 
 	std::string get_str ()
 	{
 		std::stringstream ss;
-		ss << "x = " << x << ", y = " << y << ", l = " << l << ", a = " << a << ", b = " << b;
+		ss  << "l = " << data[0]
+			<< ", a = " <<  data[1]
+			<< ", b = " <<  data[2]
+			<< ", x = " <<  data[3]
+			<< ", y = " <<  data[4];
 		return ss.str ();
 	}
 
-	Pixel operator+ (const Pixel & rhs)
+	Pixel operator+ (const Pixel & rhs) const
 	{
 		Pixel out;
-		out.l = this->l + rhs.l;
-		out.a = this->a + rhs.a;
-		out.b = this->b + rhs.b;
-		out.x = this->x + rhs.x;
-		out.y = this->y + rhs.y;
-
+		for (int i=0; i<5; i++)
+			out.data[i] = this->data[i] + rhs.data[i];
 		return out;
 	}
 
-	Pixel operator* (const float & rhs)
+	Pixel operator- (const Pixel & rhs) const
 	{
 		Pixel out;
-		out.l = this->l * rhs;
-		out.a = this->a * rhs;
-		out.b = this->b * rhs;
-		out.x = this->x * rhs;
-		out.y = this->y * rhs;
+		for (int i=0; i<5; i++)
+			out.data[i] = this->data[i] - rhs.data[i];
+		return out;
+	}
 
+	Pixel operator* (const Pixel & rhs) const
+	{
+		Pixel out;
+		for (int i=0; i<5; i++)
+			out.data[i] = this->data[i] * rhs.data[i];
+		return out;
+	}
+
+	Pixel operator* (const float & rhs) const
+	{
+		Pixel out;
+		for (int i=0; i<5; i++)
+			out.data[i] = this->data[i] * rhs;
 		return out;
 	}
 
 	float
 	getXYDistSqFrom (const Pixel & rhs)
 	{
-		float x_diff = x - rhs.x;
-		float y_diff = y - rhs.y;
+		float x_diff = data[3] - rhs.data[3];
+		float y_diff = data[4] - rhs.data[4];
 		return (x_diff * x_diff) + (y_diff * y_diff);
 	}
 };
+
+class ImageRasterScan
+{
+protected:
+	int skip;
+public:
+	ImageRasterScan (int skip) : skip (skip) { }
+
+	bool is_exact_index (int index) { return (index % skip == 0); }
+};
+
+class State
+{
+public:
+	vector<Pixel>				cluster_centers;
+	vector<int> 				labels;
+	vector<int>					associated_clusters_index;
+	static const int 			CLUSTER_DIRECTIONS = 9;
+	int region_size;
+
+	bool						is_init;
+	State ()
+	{
+		is_init = false;
+		region_size = 0;
+	}
+
+	void init (CUSTOMSLIC_ARGS& args, int sz)
+	{
+		is_init = true;
+		labels.assign (sz, -1);
+		associated_clusters_index.resize (sz*9);
+
+		updateRegionSizeFromSuperpixels (sz, args.numlabels);
+	}
+
+	void reset ()
+	{
+		is_init = false;
+		cluster_centers.clear ();
+		labels.clear ();
+		associated_clusters_index.clear ();
+		region_size = 0;
+	}
+
+	void updateRegionSizeFromSuperpixels(int sz, int numlabels)
+	{
+		if (numlabels > 0)
+			region_size = (0.5f + std::sqrt(float (sz) / (float) numlabels));
+	}
+};
+
 
 class Image
 {
@@ -137,68 +213,10 @@ public:
 	}
 };
 
-class ImageRasterScan
-{
-public:
-	int skip;
-
-	ImageRasterScan (int skip)
-	{
-		this->skip = skip;
-	}
-
-	bool is_exact_index (int index)
-	{
-		return (index % skip == 0);
-	}
-
-	int get_near_index (int index)
-	{
-		return index - (index % skip);
-	}
-};
-
-class State
-{
-public:
-	vector<Pixel>				cluster_centers;
-	vector<int> 				labels;
-	int region_size;
-
-	bool						is_init;
-	State ()
-	{
-		is_init = false;
-		region_size = 0;
-	}
-
-	void init (CUSTOMSLIC_ARGS& args, int sz)
-	{
-		is_init = true;
-		labels.assign (sz, -1);
-		updateRegionSizeFromSuperpixels (sz, args.numlabels);
-	}
-
-	void reset ()
-	{
-		is_init = false;
-		cluster_centers.clear ();
-		labels.clear ();
-		region_size = 0;
-	}
-
-	void updateRegionSizeFromSuperpixels(int sz, int numlabels)
-	{
-		if (numlabels > 0)
-			region_size = (0.5f + std::sqrt(float (sz) / (float) numlabels));
-	}
-};
-
 class IterationState
 {
 public:
 	float iteration_error;
-	vector<float> clustersize;
 	vector<float> distvec;
 	int iter_num;
 
@@ -209,14 +227,12 @@ public:
 
 	void init (int sz, int numlabels)
 	{
-		clustersize.assign(numlabels, 0);
 		distvec.assign(sz, DBL_MAX);
 		iter_num = 0;
 	}
 
 	void reset ()
 	{
-		clustersize.clear ();
 		distvec.clear ();
 		iteration_error = FLT_MAX;
 		iter_num = 0;
@@ -242,10 +258,23 @@ public:
 		iter_state.init (img->width * img->height, state.cluster_centers.size ());
 	}
 
+    //============================================================================
+    // Move the superpixel seeds to low gradient positions to avoid putting seeds
+    // at region boundaries.
+    // Pick seeds for superpixels when step size of superpixels is given.^M
+    //============================================================================
+    void PerturbSeeds(const vector<float>& edges);
+
+    //============================================================================
+    // Detect color edges, to help PerturbSeeds()
+    // Pick seeds for superpixels when step size of superpixels is given.^M
+    //============================================================================
+    void DetectLabEdges(vector<float>& edges);
+
 	//============================================================================
 	// The main SLIC algorithm for generating superpixels
 	//============================================================================
-	void PerformSuperpixelSLICIteration(int itr);
+	void PerformSuperpixelSLICIterationPPA();
 
 	//============================================================================
 	// Post-processing of SLIC segmentation, to avoid stray labels.
@@ -265,25 +294,16 @@ public:
 	//============================================================================
 	// sRGB to CIELAB conversion for 2-D images
 	//============================================================================
-	static cv::Mat DoRGBtoLABConversion(const cv::Mat &mat);
+	static void DoRGBtoLABConversion(const cv::Mat &mat, cv::Mat &out, int padding_c_left, int padding_r_up);
 
 private:
+	float calc_dist (const Pixel& p1, const Pixel& p2, float invwt);
+
 	//============================================================================
 	// Pick seeds for superpixels when step size of superpixels is given.
 	//============================================================================
-	void GetLABXYSeeds_ForGivenStepSize(const vector<float>& edgemag);
-
-	//============================================================================
-	// Move the superpixel seeds to low gradient positions to avoid putting seeds
-	// at region boundaries.
-	//============================================================================
-	void PerturbSeeds(const vector<float>& edges);
-
-	//============================================================================
-	// Detect color edges, to help PerturbSeeds()
-	//============================================================================
-	void DetectLabEdges(vector<float>& edges);
-
+	void DefineImagePixelsAssociation();
+	inline void associate_cluster_to_pixel(int vect_index, int pixel_index, int row_start, int row_length, int cluster_num);
 
 	//============================================================================
 	// sRGB to XYZ conversion; helper for RGB2LAB()
