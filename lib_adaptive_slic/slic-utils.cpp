@@ -18,7 +18,7 @@ IterationState::IterationState ()
 void
 IterationState::init (int sz, int numlabels)
 {
-	distvec.assign(sz, DBL_MAX);
+	distvec.assign(sz, 255);
 	iter_num = 0;
 }
 
@@ -68,7 +68,7 @@ State::init (AdaptiveSlicArgs& args, int sz)
 {
 	is_init = true;
 	labels.assign (sz, -1);
-	associated_clusters_index.resize (sz*9);
+	associated_clusters_index.assign (sz*9, -1);
 
 	update_region_size_from_sp (sz, args.numlabels);
 }

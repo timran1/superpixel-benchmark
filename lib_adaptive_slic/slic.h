@@ -12,6 +12,7 @@ class SLIC
 protected:
 	shared_ptr<Image> img;
 	AdaptiveSlicArgs& args;
+
 public:
 	State state;
 	IterationState iter_state;

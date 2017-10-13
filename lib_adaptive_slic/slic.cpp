@@ -123,6 +123,8 @@ SLIC::perturb_seeds(const vector<float>& edges)
 inline void
 SLIC::associate_cluster_to_pixel(int vect_index, int pixel_index, int row_start, int row_length, int cluster_num)
 {
+	assert (state.associated_clusters_index[pixel_index*State::CLUSTER_DIRECTIONS+vect_index] == -1);
+
 	if (cluster_num >= 0 && cluster_num < state.cluster_centers.size ()
 			&& cluster_num >= row_start && cluster_num < (row_start+row_length))
 		state.associated_clusters_index[pixel_index*State::CLUSTER_DIRECTIONS+vect_index] = cluster_num;
@@ -150,11 +152,20 @@ SLIC::define_image_pixels_association()
 	state.cluster_centers.resize (numseeds);
 
 	int cluster_num = 0;
+	int pixel_counter = 0;
 
+	int last_cluster_end_y = 0;
 	for( int y = 0; y < ystrips; y++ )
 	{
 		int ye = y*yerrperstrip;
 
+		int cluster_y_start = last_cluster_end_y;
+		int cluster_y_end = (y+1)*(STEP + yerrperstrip);
+		cluster_y_end = (cluster_y_end < (img->height-2)) ? cluster_y_end : img->height;
+
+		last_cluster_end_y = cluster_y_end;
+
+		int last_cluster_end_x = 0;
 		for( int x = 0; x < xstrips; x++ )
 		{
 			int xe = x*xerrperstrip;
@@ -173,17 +184,15 @@ SLIC::define_image_pixels_association()
 					);
 
 			// Assign pixels associativity to pixels under this cluster.
-			int cluster_x_start = x*STEP + xe;
-			int cluster_x_end = cluster_x_start + STEP + xerrperstrip;
-			cluster_x_end = (cluster_x_end < img->width) ? cluster_x_end : img->width-1;
+			int cluster_x_start = last_cluster_end_x;
+			int cluster_x_end = (x+1)*(STEP + xerrperstrip);
+			cluster_x_end = (cluster_x_end < (img->width-2)) ? cluster_x_end : img->width;
 
-			int cluster_y_start = y*STEP + ye;
-			int cluster_y_end = cluster_y_start + STEP + yerrperstrip;
-			cluster_y_end = (cluster_y_end < img->height) ? cluster_y_end : img->height-1;
+			last_cluster_end_x = cluster_x_end;
 
-			for( int cluster_y = cluster_y_start; cluster_y <= cluster_y_end; cluster_y++)
+			for( int cluster_y = cluster_y_start; cluster_y < cluster_y_end; cluster_y++)
 			{
-				for( int cluster_x = cluster_x_start; cluster_x <= cluster_x_end; cluster_x++)
+				for( int cluster_x = cluster_x_start; cluster_x < cluster_x_end; cluster_x++)
 				{
 					int i = cluster_y*img->width + cluster_x;
 
@@ -198,6 +207,8 @@ SLIC::define_image_pixels_association()
 					associate_cluster_to_pixel (6, i, (y+1)*xstrips, xstrips, cluster_num+xstrips);
 					associate_cluster_to_pixel (7, i, (y+1)*xstrips, xstrips, cluster_num+xstrips-1);
 					associate_cluster_to_pixel (8, i, (y+1)*xstrips, xstrips, cluster_num+xstrips+1);
+
+					pixel_counter++;
 				}
 			}
 
@@ -211,6 +222,7 @@ SLIC::define_image_pixels_association()
 		}
 	}
 
+	assert (pixel_counter == sz);
 }
 
 byte
@@ -248,12 +260,13 @@ SLIC::perform_superpixel_slic_iteration ()
 			continue;
 
 		auto& pixel = img->data[i];
-
+		bool pixel_done = false;
 		for (int n=0; n<State::CLUSTER_DIRECTIONS; n++)
 		{
 			int cluster_index = state.associated_clusters_index[i*State::CLUSTER_DIRECTIONS+n];
 			if (cluster_index == -1)
 				continue;
+			pixel_done = true;
 
 			auto& current_cluster = state.cluster_centers[cluster_index];
 
@@ -265,34 +278,29 @@ SLIC::perform_superpixel_slic_iteration ()
 				state.labels[i] = cluster_index;
 			}
 		}
+
+		assert (pixel_done);
 	}
 
-	int ind(0);
-	for( int r = 0; r < img->height; r++ )
+	for (int i=0; i<sz; i++)
 	{
-		for( int c = 0; c < img->width; c++ )
+		// If not fitting the pyramid scan pattern or the pixel has not
+		// been assigned to a SP yet, do nothing for this pixel.
+		if (image_scan.is_exact_index (i) && state.labels[i] != -1)
 		{
-			// If not fitting the pyramid scan pattern or the pixel has not
-			// been assigned to a SP yet, do nothing for this pixel.
-			if (image_scan.is_exact_index (ind) && state.labels[ind] != -1)
-			{
-				int i = c + img->width*r;
-				Pixel temp (
-						img->data[i].l (),
-						img->data[i].a (),
-						img->data[i].b (),
-						c,
-						r);
+			Pixel temp (
+					img->data[i].l (),
+					img->data[i].a (),
+					img->data[i].b (),
+					img->data[i].x (),
+					img->data[i].y ());
 
-				assert ( state.labels[ind] >= 0 &&
-							state.labels[ind] < sigma.size () &&
-							state.labels[ind] < clustersize.size ());
+			assert ( state.labels[i] >= 0 &&
+						state.labels[i] < sigma.size () &&
+						state.labels[i] < clustersize.size ());
 
-				sigma[state.labels[ind]] = sigma[state.labels[ind]] + temp;
-				clustersize[state.labels[ind]]++;
-			}
-
-			ind++;
+			sigma[state.labels[i]] = sigma[state.labels[i]] + temp;
+			clustersize[state.labels[i]]++;
 		}
 	}
 
