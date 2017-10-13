@@ -90,7 +90,7 @@ AdaptiveSlic::compute_superpixels (const cv::Mat mat_rgb, AdaptiveSlicArgs& args
     {
     	// Create Mat to hold CIELAB format image.
     	if (image_mat.rows != mat_rgb.rows)
-    		image_mat = cv::Mat::zeros(mat_rgb.rows, mat_rgb.cols, CV_32FC3);
+    		image_mat = cv::Mat::zeros(mat_rgb.rows, mat_rgb.cols, CV_8SC3);
 
         // Convert image to CIE LAB color space.
     	SLIC::do_rgb_to_lab_conversion (mat_rgb, image_mat, 0, 0);
@@ -141,7 +141,7 @@ AdaptiveSlic::compute_superpixels (const cv::Mat mat_rgb, AdaptiveSlicArgs& args
 
     	// Create Mat to hold CIELAB format image.
     	if (image_mat.rows != mat_rgb.rows)
-    		image_mat = cv::Mat::zeros(mat_rgb.rows + padding_r, mat_rgb.cols + padding_c, CV_32FC3);
+    		image_mat = cv::Mat::zeros(mat_rgb.rows + padding_r, mat_rgb.cols + padding_c, CV_8SC3);
 
 		// Convert image to CIE LAB color space.
     	SLIC::do_rgb_to_lab_conversion (mat_rgb, image_mat, padding_c_left, padding_r_up);

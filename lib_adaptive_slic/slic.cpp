@@ -213,7 +213,7 @@ SLIC::define_image_pixels_association()
 
 }
 
-float
+byte
 SLIC::calc_dist (const Pixel& p1, const Pixel& p2, float invwt)
 {
 	Pixel diff = p2 - p1;
@@ -223,7 +223,8 @@ SLIC::calc_dist (const Pixel& p1, const Pixel& p2, float invwt)
 	float dist_xy = diff_sq.x () + diff_sq.y ();
 
 	float dist_total = dist_color + dist_xy*invwt;
-	return dist_total;
+	dist_total = sqrt (dist_total);
+	return byte (dist_total);
 }
 
 void
@@ -235,9 +236,6 @@ SLIC::perform_superpixel_slic_iteration ()
 
 	// ratio of how much importance to give colour over distance.
 	float invwt = 1.0/((STEP/args.compactness)*(STEP/args.compactness));
-
-	// Get reference to iteration state variables.
-	vector<float>& distvec = iter_state.distvec;
 
 	vector<Pixel> sigma (numk);
 	vector<int> clustersize (numk);
@@ -251,7 +249,6 @@ SLIC::perform_superpixel_slic_iteration ()
 
 		auto& pixel = img->data[i];
 
-
 		for (int n=0; n<State::CLUSTER_DIRECTIONS; n++)
 		{
 			int cluster_index = state.associated_clusters_index[i*State::CLUSTER_DIRECTIONS+n];
@@ -260,11 +257,11 @@ SLIC::perform_superpixel_slic_iteration ()
 
 			auto& current_cluster = state.cluster_centers[cluster_index];
 
-			float dist = calc_dist (pixel, current_cluster, invwt);
+			byte dist = calc_dist (pixel, current_cluster, invwt);
 
-			if( dist < distvec[i] )
+			if( dist < iter_state.distvec[i] )
 			{
-				distvec[i] = dist;
+				iter_state.distvec[i] = dist;
 				state.labels[i] = cluster_index;
 			}
 		}
@@ -495,9 +492,10 @@ SLIC::do_rgb_to_lab_conversion (const cv::Mat &mat, cv::Mat &out, int padding_c_
             float l_out, a_out, b_out;
     		RGB2LAB( r, g, b, l_out, a_out, b_out);
 
-    		out.at<cv::Vec3f>(i+padding_r_up,j+padding_c_left)[0] = l_out;
-    		out.at<cv::Vec3f>(i+padding_r_up,j+padding_c_left)[1] = a_out;
-    		out.at<cv::Vec3f>(i+padding_r_up,j+padding_c_left)[2] = b_out;
+    		out.at<cv::Vec3b>(i+padding_r_up,j+padding_c_left)[0] = char(l_out);
+    		out.at<cv::Vec3b>(i+padding_r_up,j+padding_c_left)[1] = char(a_out);
+    		out.at<cv::Vec3b>(i+padding_r_up,j+padding_c_left)[2] = char(b_out);
+
         }
     }
 }

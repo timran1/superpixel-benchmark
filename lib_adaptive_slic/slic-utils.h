@@ -8,6 +8,7 @@
 #include <opencv2/opencv.hpp>
 #include <memory>
 
+typedef unsigned char byte;
 using namespace std;
 
 class AdaptiveSlicArgs {
@@ -105,7 +106,7 @@ class IterationState
 {
 public:
 	float iteration_error;
-	vector<float> distvec;
+	vector<byte> distvec;
 	int iter_num;
 
 	IterationState ();

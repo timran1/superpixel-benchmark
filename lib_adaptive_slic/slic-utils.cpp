@@ -44,9 +44,9 @@ Image::Image (cv::Mat& mat, int width, int height)
 		for (int j = 0; j < mat.cols; ++j) {
 
 			data[ptr++] = Pixel (
-					mat.at<cv::Vec3f>(i,j)[0],
-					mat.at<cv::Vec3f>(i,j)[1],
-					mat.at<cv::Vec3f>(i,j)[2],
+					char(mat.at<cv::Vec3b>(i,j)[0]),
+					char(mat.at<cv::Vec3b>(i,j)[1]),
+					char(mat.at<cv::Vec3b>(i,j)[2]),
 					j,
 					i);
 		}

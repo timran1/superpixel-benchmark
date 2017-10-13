@@ -41,7 +41,7 @@ public:
 
 private:
 	// Calculate distance between two points on image.
-	float calc_dist (const Pixel& p1, const Pixel& p2, float invwt);
+	byte calc_dist (const Pixel& p1, const Pixel& p2, float invwt);
 
 	// Pick seeds for superpixels when step size of superpixels is given.
 	void define_image_pixels_association ();
