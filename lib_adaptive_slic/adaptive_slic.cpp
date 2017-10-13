@@ -65,7 +65,7 @@ AdaptiveSlic::compute_superpixels_on_tile (shared_ptr<SLIC> slic, cv::Mat &label
 		slic->perform_superpixel_slic_iteration ();
 
 		// post iteration hook.
-		if (slic->iter_state.iteration_error > args.target_error)
+		if (slic->iter_state.iteration_error < args.target_error)
 			break;
 	}
 

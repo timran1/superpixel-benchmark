@@ -79,14 +79,12 @@ class State
 public:
 	vector<Pixel> cluster_centers;
 	vector<int> labels;
-	vector<int>	associated_clusters_index;
 
-	int region_size;
-	bool is_init;
+	// These variables are constant for given SP num and image size.
+	vector<tuple<int,int,int,int>> cluster_range;
+	vector<vector<int>> cluster_associativity_array;
+	int region_size = 0;
 
-	static const int CLUSTER_DIRECTIONS = 9;
-
-	State ();
 	void init (AdaptiveSlicArgs& args, int sz);
 	void reset ();
 	void update_region_size_from_sp (int sz, int numlabels);
@@ -106,6 +104,7 @@ class IterationState
 {
 public:
 	float iteration_error;
+	vector<float> iteration_error_individual;
 	vector<byte> distvec;
 	int iter_num;
 

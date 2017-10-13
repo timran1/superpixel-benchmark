@@ -19,6 +19,7 @@ void
 IterationState::init (int sz, int numlabels)
 {
 	distvec.assign(sz, 255);
+	iteration_error_individual.assign (numlabels, FLT_MAX);
 	iter_num = 0;
 }
 
@@ -26,6 +27,7 @@ void
 IterationState::reset ()
 {
 	distvec.clear ();
+	iteration_error_individual.clear ();
 	iteration_error = FLT_MAX;
 	iter_num = 0;
 }
@@ -57,29 +59,21 @@ Image::Image (cv::Mat& mat, int width, int height)
 //-----------------------------------------------------------------------
 // State class.
 //-----------------------------------------------------------------------
-State::State ()
-{
-	is_init = false;
-	region_size = 0;
-}
-
 void
 State::init (AdaptiveSlicArgs& args, int sz)
 {
-	is_init = true;
 	labels.assign (sz, -1);
-	associated_clusters_index.assign (sz*9, -1);
-
 	update_region_size_from_sp (sz, args.numlabels);
 }
 
 void
 State::reset ()
 {
-	is_init = false;
 	cluster_centers.clear ();
 	labels.clear ();
-	associated_clusters_index.clear ();
+
+	cluster_range.clear ();
+	cluster_associativity_array.clear ();
 	region_size = 0;
 }
 

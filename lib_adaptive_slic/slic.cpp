@@ -121,15 +121,15 @@ SLIC::perturb_seeds(const vector<float>& edges)
 }
 
 inline void
-SLIC::associate_cluster_to_pixel(int vect_index, int pixel_index, int row_start, int row_length, int cluster_num)
+SLIC::associate_cluster_to_pixel(int vect_index, int cluster_index, int row_start, int row_length, int cluster_num)
 {
-	assert (state.associated_clusters_index[pixel_index*State::CLUSTER_DIRECTIONS+vect_index] == -1);
+	assert (state.cluster_associativity_array[cluster_index][vect_index] == -1);
 
 	if (cluster_num >= 0 && cluster_num < state.cluster_centers.size ()
 			&& cluster_num >= row_start && cluster_num < (row_start+row_length))
-		state.associated_clusters_index[pixel_index*State::CLUSTER_DIRECTIONS+vect_index] = cluster_num;
+		state.cluster_associativity_array[cluster_index][vect_index] = cluster_num;
 	else
-		state.associated_clusters_index[pixel_index*State::CLUSTER_DIRECTIONS+vect_index] = -1;
+		state.cluster_associativity_array[cluster_index][vect_index] = -1;
 }
 
 
@@ -150,9 +150,10 @@ SLIC::define_image_pixels_association()
 
 	int numseeds = xstrips*ystrips;
 	state.cluster_centers.resize (numseeds);
+	state.cluster_range.resize (numseeds);
+	state.cluster_associativity_array.assign (numseeds, vector<int>(9, -1));
 
 	int cluster_num = 0;
-	int pixel_counter = 0;
 
 	int last_cluster_end_y = 0;
 	for( int y = 0; y < ystrips; y++ )
@@ -190,28 +191,18 @@ SLIC::define_image_pixels_association()
 
 			last_cluster_end_x = cluster_x_end;
 
-			for( int cluster_y = cluster_y_start; cluster_y < cluster_y_end; cluster_y++)
-			{
-				for( int cluster_x = cluster_x_start; cluster_x < cluster_x_end; cluster_x++)
-				{
-					int i = cluster_y*img->width + cluster_x;
+			state.cluster_range[cluster_num] = std::make_tuple (cluster_x_start, cluster_x_end,
+																cluster_y_start, cluster_y_end);
 
-					assert (i < sz);
-
-					associate_cluster_to_pixel (0, i, y*xstrips, xstrips, cluster_num);
-					associate_cluster_to_pixel (1, i, y*xstrips, xstrips, cluster_num-1);
-					associate_cluster_to_pixel (2, i, y*xstrips, xstrips, cluster_num+1);
-					associate_cluster_to_pixel (3, i, (y-1)*xstrips, xstrips, cluster_num-xstrips);
-					associate_cluster_to_pixel (4, i, (y-1)*xstrips, xstrips, cluster_num-xstrips-1);
-					associate_cluster_to_pixel (5, i, (y-1)*xstrips, xstrips, cluster_num-xstrips+1);
-					associate_cluster_to_pixel (6, i, (y+1)*xstrips, xstrips, cluster_num+xstrips);
-					associate_cluster_to_pixel (7, i, (y+1)*xstrips, xstrips, cluster_num+xstrips-1);
-					associate_cluster_to_pixel (8, i, (y+1)*xstrips, xstrips, cluster_num+xstrips+1);
-
-					pixel_counter++;
-				}
-			}
-
+			associate_cluster_to_pixel (0, cluster_num, y*xstrips, xstrips, cluster_num);
+			associate_cluster_to_pixel (1, cluster_num, y*xstrips, xstrips, cluster_num-1);
+			associate_cluster_to_pixel (2, cluster_num, y*xstrips, xstrips, cluster_num+1);
+			associate_cluster_to_pixel (3, cluster_num, (y-1)*xstrips, xstrips, cluster_num-xstrips);
+			associate_cluster_to_pixel (4, cluster_num, (y-1)*xstrips, xstrips, cluster_num-xstrips-1);
+			associate_cluster_to_pixel (5, cluster_num, (y-1)*xstrips, xstrips, cluster_num-xstrips+1);
+			associate_cluster_to_pixel (6, cluster_num, (y+1)*xstrips, xstrips, cluster_num+xstrips);
+			associate_cluster_to_pixel (7, cluster_num, (y+1)*xstrips, xstrips, cluster_num+xstrips-1);
+			associate_cluster_to_pixel (8, cluster_num, (y+1)*xstrips, xstrips, cluster_num+xstrips+1);
 
 			//cout << "cluster_num=" << cluster_num << ": x=[" << cluster_x_start << ":" << cluster_x_end << "] y=["
 			//												 << cluster_y_start << ":" << cluster_y_end << "]"
@@ -222,7 +213,6 @@ SLIC::define_image_pixels_association()
 		}
 	}
 
-	assert (pixel_counter == sz);
 }
 
 byte
@@ -248,38 +238,77 @@ SLIC::perform_superpixel_slic_iteration ()
 
 	// ratio of how much importance to give colour over distance.
 	float invwt = 1.0/((STEP/args.compactness)*(STEP/args.compactness));
+	float error_normalization = state.region_size*state.region_size*4;
 
 	vector<Pixel> sigma (numk);
 	vector<int> clustersize (numk);
 
 	ImageRasterScan image_scan (args.access_pattern[iter_state.iter_num]);
 
-	for (int i=0; i<sz; i++)
+	int num_cluster_saved = 0;
+
+	// For each cluster.
+	for (int n=0; n<state.cluster_centers.size (); n++)
 	{
-		if (!image_scan.is_exact_index (i))
-			continue;
+		// Get cluster values.
+		auto& cluster_range = state.cluster_range[n];
+		auto& cluster_associativity_array = state.cluster_associativity_array[n];
 
-		auto& pixel = img->data[i];
-		bool pixel_done = false;
-		for (int n=0; n<State::CLUSTER_DIRECTIONS; n++)
+		// Check if this cluster has not converged already in last iteration.
+		// All neighbourhood pixels should have movement less than a threshold.
+		bool needs_update = false;
+		for (int k=0; k<cluster_associativity_array.size (); k++)
 		{
-			int cluster_index = state.associated_clusters_index[i*State::CLUSTER_DIRECTIONS+n];
-			if (cluster_index == -1)
-				continue;
-			pixel_done = true;
+			int cluster_index = cluster_associativity_array[k];
 
-			auto& current_cluster = state.cluster_centers[cluster_index];
-
-			byte dist = calc_dist (pixel, current_cluster, invwt);
-
-			if( dist < iter_state.distvec[i] )
+			if (cluster_index != -1)
 			{
-				iter_state.distvec[i] = dist;
-				state.labels[i] = cluster_index;
+				if (iter_state.iteration_error_individual[cluster_index] > args.target_error)
+				{
+					needs_update = true;
+					break;
+				}
 			}
 		}
+		if (!needs_update)
+		{
+			num_cluster_saved++;
+			continue;
+		}
 
-		assert (pixel_done);
+		// Update distance for all pixels in current cluster.
+		for (int x = get<0>(cluster_range); x < get<1>(cluster_range); x++)
+		{
+			for (int y = get<2>(cluster_range); y<get<3>(cluster_range); y++)
+			{
+				// For each pixel in cluster.
+				int i = y*img->width + x;
+
+				if (!image_scan.is_exact_index (i))
+					continue;
+
+				auto& pixel = img->data[i];
+
+				for (int k=0; k<cluster_associativity_array.size (); k++)
+				{
+					int cluster_index = cluster_associativity_array[k];
+
+					if (cluster_index != -1)
+					{
+						auto& current_cluster = state.cluster_centers[cluster_index];
+
+						byte dist = calc_dist (pixel, current_cluster, invwt);
+
+						if( dist < iter_state.distvec[i] )
+						{
+							iter_state.distvec[i] = dist;
+							state.labels[i] = cluster_index;
+						}
+					}
+
+				}
+			}
+		}
 	}
 
 	for (int i=0; i<sz; i++)
@@ -317,14 +346,19 @@ SLIC::perform_superpixel_slic_iteration ()
 		Pixel new_center = sigma[k] * inv;
 
 		// Calculate error.
-		iter_state.iteration_error += new_center.get_xy_distsq_from (state.cluster_centers[k]);
+		float current_cluster_error = new_center.get_xy_distsq_from (state.cluster_centers[k])/error_normalization;
 
+		iter_state.iteration_error_individual[k] = current_cluster_error;
+		iter_state.iteration_error += current_cluster_error;
+
+		// Update cluster center.
 		state.cluster_centers[k] = new_center;
 	}
 
-	iter_state.iteration_error = 1 - iter_state.iteration_error / state.cluster_centers.size () / (state.region_size*state.region_size*4);
+	iter_state.iteration_error = iter_state.iteration_error / state.cluster_centers.size ();
 	iter_state.iter_num++;
 
+	printf ("Saved Clusters: %d \n", num_cluster_saved);
 }
 
 int

@@ -171,12 +171,12 @@ int main(int argc, const char** argv) {
 
         const char* window_name = "SLIC Superpixels";
 
-        int target_error_factor = (target_error-0.999) * 1000 * 1000;
+        int target_error_factor = 1000;
 
         cv::namedWindow(window_name, 0);
         cv::createTrackbar("Superpixels", window_name, &superpixels, 10000, 0);
         cv::createTrackbar("Iterations", window_name, &iterations, 12, 0);
-        cv::createTrackbar("Target Error (0.999-1.000)", window_name, &target_error_factor, 1000, 0);
+        cv::createTrackbar("Target Error", window_name, &target_error_factor, 1000, 0);
 
         AdaptiveSlic adaptive_slic (plot_graphs);
         for (;;)
@@ -196,7 +196,7 @@ int main(int argc, const char** argv) {
 
             args.iterations = iterations;
             args.numlabels = superpixels;
-            args.target_error = float (target_error_factor)/10000000 + 0.9999;
+            args.target_error = float (target_error_factor)/100000000;
 
             // Capture a frame.
             cap >> image;
@@ -217,7 +217,7 @@ int main(int argc, const char** argv) {
             cv::imshow(window_name, image);
 
 			float display = timer.elapsed();
-            std::cout << "Size: " << image.cols << "x" << image.rows << " - Time: " << elapsed << "s - Display: " << display << "s" << std::endl;
+            std::cout << "Size: " << image.cols << "x" << image.rows << " - Processing Time: " << elapsed << "s - Including display: " << display << "s" << std::endl;
 
 			// Wait for some inputs and prepare for next time.
             int c = cv::waitKey(1) & 0xff;
