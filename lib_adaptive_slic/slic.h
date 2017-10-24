@@ -26,7 +26,7 @@ public:
 	void init_iteration_state ();
 
 	///	High level function to find initial seeds on the image.
-	void set_initial_seeds ();
+	void set_initial_seeds (cv::Mat grid_mat);
 
 	// The main SLIC algorithm for generating superpixels
 	void perform_superpixel_slic_iteration ();
@@ -42,10 +42,10 @@ public:
 
 private:
 	// Calculate distance between two points on image.
-	byte calc_dist (const Pixel& p1, const Pixel& p2, float invwt);
+	word calc_dist (const Pixel& p1, const Pixel& p2, float invwt);
 
 	// Pick seeds for superpixels when step size of superpixels is given.
-	void define_image_pixels_association ();
+	void define_image_pixels_association (cv::Mat grid_mat);
 
 	// Associate a pixel to cluster, if conditions are valid.
 	inline void associate_cluster_to_pixel (int vect_index, int pixel_index, int row_start, int row_length, int cluster_num);

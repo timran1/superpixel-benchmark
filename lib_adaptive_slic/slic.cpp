@@ -34,9 +34,9 @@ SLIC::get_labels_mat (cv::Mat &labels)
 }
 
 void
-SLIC::set_initial_seeds ()
+SLIC::set_initial_seeds (cv::Mat grid_mat)
 {
-	define_image_pixels_association();
+	define_image_pixels_association(grid_mat);
 
 	if (args.perturbseeds)
 	{
@@ -134,7 +134,7 @@ SLIC::associate_cluster_to_pixel(int vect_index, int cluster_index, int row_star
 
 
 void
-SLIC::define_image_pixels_association()
+SLIC::define_image_pixels_association(cv::Mat grid_mat)
 {
 	const int STEP = state.region_size;
 	const int sz = img->width * img->height;
@@ -165,6 +165,9 @@ SLIC::define_image_pixels_association()
 		cluster_y_end = (cluster_y_end < (img->height-2)) ? cluster_y_end : img->height;
 
 		last_cluster_end_y = cluster_y_end;
+
+		// Draw this cluster boundary on grid_map
+		cv::line(grid_mat, cv::Point (0, cluster_y_end+1), cv::Point (img->width, cluster_y_end+1), cv::Scalar(255));
 
 		int last_cluster_end_x = 0;
 		for( int x = 0; x < xstrips; x++ )
@@ -204,10 +207,13 @@ SLIC::define_image_pixels_association()
 			associate_cluster_to_pixel (7, cluster_num, (y+1)*xstrips, xstrips, cluster_num+xstrips-1);
 			associate_cluster_to_pixel (8, cluster_num, (y+1)*xstrips, xstrips, cluster_num+xstrips+1);
 
+			// Draw this cluster boundary on grid_map. Only need to do this on first row.
+			if (y == 0)
+				cv::line(grid_mat, cv::Point (cluster_x_start, 0), cv::Point (cluster_x_start, img->height), cv::Scalar(255));
+
 			//cout << "cluster_num=" << cluster_num << ": x=[" << cluster_x_start << ":" << cluster_x_end << "] y=["
 			//												 << cluster_y_start << ":" << cluster_y_end << "]"
 			//												 << "seed = [" << seedx << "," << seedy << "] " << endl;
-
 
 			cluster_num++;
 		}
@@ -215,66 +221,81 @@ SLIC::define_image_pixels_association()
 
 }
 
-byte
+word
 SLIC::calc_dist (const Pixel& p1, const Pixel& p2, float invwt)
 {
 	Pixel diff = p2 - p1;
-	Pixel diff_sq = diff*diff;
+	vector<int> diff_sq = diff.get_int_arr ();
+	for (int i=0; i<5; i++)
+		diff_sq[i] *= diff_sq[i];
 
-	float dist_color = diff_sq.l () + diff_sq.a () + diff_sq.b ();
-	float dist_xy = diff_sq.x () + diff_sq.y ();
+	float dist_color = diff_sq[0] + diff_sq[1] + diff_sq[2];
+	float dist_xy = diff_sq[3] + diff_sq[4];
 
 	float dist_total = dist_color + dist_xy*invwt;
 	dist_total = sqrt (dist_total);
-	return byte (dist_total);
+	return word (dist_total);
 }
 
 void
 SLIC::perform_superpixel_slic_iteration ()
 {
+	Profiler profiler ("perform_superpixel_slic_iteration", false);
+
 	int STEP = state.region_size;
 	int sz = img->width*img->height;
 	int numk = state.cluster_centers.size ();
 
 	// ratio of how much importance to give colour over distance.
-	float invwt = 1.0/((STEP/args.compactness)*(STEP/args.compactness));
+	char invwt = 1.0/(STEP/args.compactness);
 	float error_normalization = state.region_size*state.region_size*4;
 
-	vector<Pixel> sigma (numk);
-	vector<int> clustersize (numk);
+	// Reset iteration_variables from previous iterations.
+	iter_state.iteration_error = 0;
+	iter_state.num_clusters_updated = 0;
+
+	vector<vector<int>> sigma (numk, vector<int> (5));
+	vector<word> clustersize (numk);
+	vector<bool> cluster_needs_update (numk, false);
 
 	ImageRasterScan image_scan (args.access_pattern[iter_state.iter_num]);
-
-	int num_cluster_saved = 0;
 
 	// For each cluster.
 	for (int n=0; n<state.cluster_centers.size (); n++)
 	{
 		// Get cluster values.
-		auto& cluster_range = state.cluster_range[n];
 		auto& cluster_associativity_array = state.cluster_associativity_array[n];
 
 		// Check if this cluster has not converged already in last iteration.
 		// All neighbourhood pixels should have movement less than a threshold.
-		bool needs_update = false;
 		for (int k=0; k<cluster_associativity_array.size (); k++)
 		{
 			int cluster_index = cluster_associativity_array[k];
 
 			if (cluster_index != -1)
 			{
-				if (iter_state.iteration_error_individual[cluster_index] > args.target_error)
+				if (iter_state.iteration_error_individual[cluster_index] > 0)
 				{
-					needs_update = true;
+					iter_state.num_clusters_updated++;
+					cluster_needs_update[n] = true;
 					break;
 				}
 			}
 		}
-		if (!needs_update)
-		{
-			num_cluster_saved++;
+	}
+	profiler.update_checkpoint ("1st pass");
+
+	// For each cluster.
+	for (int n=0; n<state.cluster_centers.size (); n++)
+	//tbb::parallel_for( tbb::blocked_range<size_t>(0,numk), [=](const tbb::blocked_range<size_t>& r) {
+	//		for(size_t n=r.begin(); n!=r.end(); ++n)
+	{
+		if (!cluster_needs_update[n])
 			continue;
-		}
+
+		// Get cluster values.
+		auto& cluster_range = state.cluster_range[n];
+		auto& cluster_associativity_array = state.cluster_associativity_array[n];
 
 		// Update distance for all pixels in current cluster.
 		for (int x = get<0>(cluster_range); x < get<1>(cluster_range); x++)
@@ -297,7 +318,7 @@ SLIC::perform_superpixel_slic_iteration ()
 					{
 						auto& current_cluster = state.cluster_centers[cluster_index];
 
-						byte dist = calc_dist (pixel, current_cluster, invwt);
+						word dist = calc_dist (pixel, current_cluster, invwt);
 
 						if( dist < iter_state.distvec[i] )
 						{
@@ -310,55 +331,80 @@ SLIC::perform_superpixel_slic_iteration ()
 			}
 		}
 	}
+	//});
+	profiler.update_checkpoint ("2nd pass");
 
-	for (int i=0; i<sz; i++)
+	// For each cluster.
+	for (int n=0; n<state.cluster_centers.size (); n++)
 	{
-		// If not fitting the pyramid scan pattern or the pixel has not
-		// been assigned to a SP yet, do nothing for this pixel.
-		if (image_scan.is_exact_index (i) && state.labels[i] != -1)
+		if (!cluster_needs_update[n])
+			continue;
+
+		// Get cluster values.
+		auto& cluster_range = state.cluster_range[n];
+		auto& cluster_associativity_array = state.cluster_associativity_array[n];
+
+		// Update distance for all pixels in current cluster.
+		for (int x = get<0>(cluster_range); x < get<1>(cluster_range); x++)
 		{
-			Pixel temp (
-					img->data[i].l (),
-					img->data[i].a (),
-					img->data[i].b (),
-					img->data[i].x (),
-					img->data[i].y ());
+			for (int y = get<2>(cluster_range); y<get<3>(cluster_range); y++)
+			{
+				// For each pixel in cluster.
+				int i = y*img->width + x;
 
-			assert ( state.labels[i] >= 0 &&
-						state.labels[i] < sigma.size () &&
-						state.labels[i] < clustersize.size ());
+				// If not fitting the pyramid scan pattern or the pixel has not
+				// been assigned to a SP yet, do nothing for this pixel.
+				if (image_scan.is_exact_index (i) && state.labels[i] != -1)
+				{
+					assert ( state.labels[i] >= 0 &&
+								state.labels[i] < sigma.size () &&
+								state.labels[i] < clustersize.size ());
 
-			sigma[state.labels[i]] = sigma[state.labels[i]] + temp;
-			clustersize[state.labels[i]]++;
+					sigma[state.labels[i]][0] += img->data[i].l ();
+					sigma[state.labels[i]][1] += img->data[i].a ();
+					sigma[state.labels[i]][2] += img->data[i].b ();
+					sigma[state.labels[i]][3] += img->data[i].x ();
+					sigma[state.labels[i]][4] += img->data[i].y ();
+
+					clustersize[state.labels[i]]++;
+				}
+
+			}
 		}
 	}
+	profiler.update_checkpoint ("3rd pass");
 
-	// Reset iteration_error error from previous iterations.
-	iter_state.iteration_error = 0;
-
-	for( int k = 0; k < numk; k++ )
+	// For each cluster.
+	for( int n = 0; n < numk; n++ )
 	{
-		if( clustersize[k] <= 0 ) clustersize[k] = 1;
+		if (!cluster_needs_update[n])
+			continue;
 
-		//computing inverse now to multiply, than divide later
-		float inv = 1/float (clustersize[k]);
+		if( clustersize[n] <= 0 ) clustersize[n] = 1;
 
-		Pixel new_center = sigma[k] * inv;
+		vector<int> new_center_int (5);
+		for (int i=0; i<5; i++)
+			new_center_int[i] = sigma[n][i] /clustersize[n];
+
+		Pixel new_center (new_center_int);
 
 		// Calculate error.
-		float current_cluster_error = new_center.get_xy_distsq_from (state.cluster_centers[k])/error_normalization;
+		Pixel diff = new_center - state.cluster_centers[n];
 
-		iter_state.iteration_error_individual[k] = current_cluster_error;
+		byte current_cluster_error = diff.get_mag ();// new_center.get_xy_distsq_from (state.cluster_centers[n]);
+
+		iter_state.iteration_error_individual[n] = current_cluster_error;
 		iter_state.iteration_error += current_cluster_error;
 
 		// Update cluster center.
-		state.cluster_centers[k] = new_center;
+		state.cluster_centers[n] = new_center;
 	}
+	profiler.update_checkpoint ("4th pass");
 
-	iter_state.iteration_error = iter_state.iteration_error / state.cluster_centers.size ();
+	iter_state.iteration_error = iter_state.iteration_error / state.cluster_centers.size () / error_normalization;
 	iter_state.iter_num++;
 
-	printf ("Saved Clusters: %d \n", num_cluster_saved);
+	std::cout << profiler.print_checkpoints ();
 }
 
 int

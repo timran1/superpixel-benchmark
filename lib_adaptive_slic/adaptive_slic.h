@@ -20,6 +20,12 @@ public:
     // Get Mat containing segmentation labels.
     cv::Mat get_labels ();
 
+    // Profiler
+    Profiler profiler;
+
+public:
+	cv::Mat grid_mat;
+
 private:
     cv::Mat labels;
 	cv::Mat image_mat;

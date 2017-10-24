@@ -34,8 +34,9 @@ int main(int argc, const char** argv) {
 		("stateful", "Use state from previous frame")
 		("tile-size", boost::program_options::value<int>()->default_value(0), "Size of side of tile square")
 	    ("pyramid-pattern", boost::program_options::value<std::string>(), "access pattern for reverse pyramid approach")
-	    ("target-error", boost::program_options::value<double>()->default_value(1.0), "target error to attempt, unless num iterations complete first.")
-	    ("plot", "Plot iteration and error graphs.");
+	    ("target-error", boost::program_options::value<double>()->default_value(0.0), "target error to attempt, unless num iterations complete first.")
+	    ("plot", "Plot iteration and error graphs.")
+	    ("grid", "Draw SP grid.");
 
         
     boost::program_options::positional_options_description positionals;
@@ -104,8 +105,12 @@ int main(int argc, const char** argv) {
 
     bool plot_graphs = false;
     if (parameters.find("plot") != parameters.end()) {
-        // We want a camera feed.
     	plot_graphs = true;
+    }
+
+    bool draw_grid = false;
+    if (parameters.find("grid") != parameters.end()) {
+        draw_grid = true;
     }
 
     bool wordy = false;
@@ -196,7 +201,7 @@ int main(int argc, const char** argv) {
 
             args.iterations = iterations;
             args.numlabels = superpixels;
-            args.target_error = float (target_error_factor)/100000000;
+            args.target_error = float (target_error_factor)/10000;
 
             // Capture a frame.
             cap >> image;
@@ -210,14 +215,26 @@ int main(int argc, const char** argv) {
 
             float elapsed = timer.elapsed();
 
+            // Create grid of SP association
+            if (draw_grid)
+                image.setTo(cv::Scalar(255, 0, 0), adaptive_slic.grid_mat);
+
             // Create contours for display.
             ImageUtils::get_labels_contour_mask(image, adaptive_slic.get_labels (), mask, (superpixels < 1000));
             image.setTo(cv::Scalar(0, 0, 255), mask);
 
+            float fps = 1/elapsed;
+            std::stringstream ss;
+            ss << fps << " fps";
+            putText(image, ss.str (), cvPoint(5,10),
+                cv::FONT_HERSHEY_COMPLEX_SMALL, 0.6, cvScalar(255,255,255), 0.2, CV_AA);
+
             cv::imshow(window_name, image);
 
+            cout << adaptive_slic.profiler.print_checkpoints ();
+
 			float display = timer.elapsed();
-            std::cout << "Size: " << image.cols << "x" << image.rows << " - Processing Time: " << elapsed << "s - Including display: " << display << "s" << std::endl;
+            std::cout << "Size: " << image.cols << "x" << image.rows << " Clust. Upd: " << args.num_clusters_updated <<" - Processing Time: " << elapsed << "s - Including display: " << display << "s" << std::endl;
 
 			// Wait for some inputs and prepare for next time.
             int c = cv::waitKey(1) & 0xff;
@@ -256,6 +273,10 @@ int main(int argc, const char** argv) {
             adaptive_slic.compute_superpixels(image, args);
             float elapsed = timer.elapsed();
             total += elapsed;
+
+            cout << adaptive_slic.profiler.print_checkpoints ();
+
+            std::cout << "Size: " << image.cols << "x" << image.rows << " Clust. Upd: " << args.num_clusters_updated <<" - Processing Time: " << elapsed << "s" << std::endl;
 
             if (!output_dir.empty()) {
                 boost::filesystem::path csv_file(output_dir

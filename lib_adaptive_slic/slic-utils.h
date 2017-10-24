@@ -8,7 +8,11 @@
 #include <opencv2/opencv.hpp>
 #include <memory>
 
+#include <boost/timer.hpp>
+
 typedef unsigned char byte;
+typedef int word;
+
 using namespace std;
 
 class AdaptiveSlicArgs {
@@ -27,6 +31,9 @@ public:
 	bool perturbseeds;
 	int color;
 
+	// Outputs
+	int num_clusters_updated;
+
 	AdaptiveSlicArgs ()
 	{
 		// Set some default values.
@@ -40,6 +47,8 @@ public:
 		compactness = 40;
 		perturbseeds = false;
 		color = 1;
+
+		num_clusters_updated = 0;
 	}
 };
 
@@ -47,22 +56,26 @@ public:
 class Pixel
 {
 public:
-	float data[5];
+	char color[3];
+	word coord[2];
 	Pixel ();
-	Pixel (	float l, float a, float b, float x, float y);
+	Pixel (char l, char a, char b, word x, word y);
+	Pixel (vector<int> & in);
 
-	float& l () {return data[0];}
-	float& a () {return data[1];}
-	float& b () {return data[2];}
-	float& x () {return data[3];}
-	float& y () {return data[4];}
+	char& l () {return color[0];}
+	char& a () {return color[1];}
+	char& b () {return color[2];}
+	word& x () {return coord[0];}
+	word& y () {return coord[1];}
 
 	std::string get_str ();
 	Pixel operator+ (const Pixel & rhs) const;
 	Pixel operator- (const Pixel & rhs) const;
 	Pixel operator* (const Pixel & rhs) const;
-	Pixel operator* (const float & rhs) const;
-	float get_xy_distsq_from (const Pixel & rhs);
+	word get_mag () const;
+	word get_xy_distsq_from (const Pixel & rhs);
+
+	vector<int> get_int_arr() const;
 };
 
 class ImageRasterScan
@@ -71,7 +84,7 @@ protected:
 	int skip;
 public:
 	ImageRasterScan (int skip) : skip (skip) { }
-	bool is_exact_index (int index) { return (index % skip == 0); }
+	bool is_exact_index (int index) const { return (index % skip == 0); }
 };
 
 class State
@@ -104,13 +117,31 @@ class IterationState
 {
 public:
 	float iteration_error;
-	vector<float> iteration_error_individual;
-	vector<byte> distvec;
+	vector<byte> iteration_error_individual;
+	vector<word> distvec;
 	int iter_num;
+
+	// For accounting only
+	int num_clusters_updated;
 
 	IterationState ();
 	void init (int sz, int numlabels);
 	void reset ();
+};
+
+
+class Profiler
+{
+protected:
+	boost::timer timer;
+	vector<pair<string, double>> checkpoints;
+	bool enable;
+	string name;
+public:
+	Profiler (string name, bool enable) : name (name), enable (enable) {}
+	void reset_timer ();
+	void update_checkpoint (string name);
+	string print_checkpoints ();
 };
 
 #endif

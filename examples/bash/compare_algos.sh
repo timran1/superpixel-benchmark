@@ -100,7 +100,8 @@ do
 				--iterations $iterations \
 				--tile-size $tile_size \
 				--pyramid-pattern $pyramid_pattern \
-				--target-error 1
+				--target-error 0 \
+				--perturb-seeds 0
 
 		fi
 

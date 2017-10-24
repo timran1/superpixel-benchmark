@@ -11,7 +11,7 @@
 #include "stdio.h"
 using namespace cv;
 
-AdaptiveSlic::AdaptiveSlic (bool plot) : plotter (10)
+AdaptiveSlic::AdaptiveSlic (bool plot) : plotter (5), profiler ("AdaptiveSlic", true)
 {
     labels_rect = Rect (0,0,0,0);
 
@@ -20,7 +20,7 @@ AdaptiveSlic::AdaptiveSlic (bool plot) : plotter (10)
 	{
 		// Set the plot
 		plotter.pre_plot_cmds =
-		"set multiplot layout 2, 1 title \"Adaptive SLIC\" font \",14\" \n"
+		"set multiplot layout 3, 1 title \"Adaptive SLIC\" font \",14\" \n"
 		"set tmargin 3 \n";
 		plotter.post_plot_cmds = "unset multiplot \n";
 
@@ -34,6 +34,11 @@ AdaptiveSlic::AdaptiveSlic (bool plot) : plotter (10)
 		plotter.plots["plot2"] = Plot ("Iterations");
 		plotter.plots["plot2"].pre_plot_cmds = "unset key\n";
 		plotter.plots["plot2"].series["iter"] = DataSeries ("[ ] [0:]", "Iterations", "boxes fs solid ", 500);
+
+		// Clusters saved plot
+		plotter.plots["plot3"] = Plot ("Num Clusters Updated");
+		plotter.plots["plot3"].pre_plot_cmds = "unset key\n";
+		plotter.plots["plot3"].series["clusters"] = DataSeries ("[ ] [0:]", "Clusters", "boxes fs solid ", 500);
 	}
 }
 
@@ -44,6 +49,7 @@ AdaptiveSlic::reset ()
 	labels.release ();
     labels_rect = Rect (0,0,0,0);
 	image_mat = cv::Mat ();
+	grid_mat.release ();
 }
 
 cv::Mat
@@ -59,10 +65,18 @@ AdaptiveSlic::compute_superpixels_on_tile (shared_ptr<SLIC> slic, cv::Mat &label
 	// Main operation
 	slic->init_iteration_state ();
 
+	args.num_clusters_updated = 0;
+
 	int itr = 0;
 	for(; itr < args.iterations; itr++ )
 	{
 		slic->perform_superpixel_slic_iteration ();
+
+		args.num_clusters_updated += slic->iter_state.num_clusters_updated;
+
+		//cout << "Iter# " << itr << " Num Clust= " << slic->iter_state.num_clusters_updated << " Error= " << slic->iter_state.iteration_error << endl;
+		stringstream ss; ss << "Iter " << itr << " done";
+		profiler.update_checkpoint (ss.str ());
 
 		// post iteration hook.
 		if (slic->iter_state.iteration_error < args.target_error)
@@ -72,11 +86,17 @@ AdaptiveSlic::compute_superpixels_on_tile (shared_ptr<SLIC> slic, cv::Mat &label
     // Post processing
     slic->enforce_labels_connectivity ();
 
+    profiler.update_checkpoint ("enforce_labels_connectivity done");
+
     slic->get_labels_mat (labels_seg);
+
+    profiler.update_checkpoint ("get_labels_mat done");
 
     // Rename labels so they consist of continuously increasing
     // numbers.
     SuperpixelTools::relabelSuperpixels(labels_seg);
+
+    profiler.update_checkpoint ("relabelSuperpixels done");
 
 }
 
@@ -84,6 +104,8 @@ AdaptiveSlic::compute_superpixels_on_tile (shared_ptr<SLIC> slic, cv::Mat &label
 void
 AdaptiveSlic::compute_superpixels (const cv::Mat mat_rgb, AdaptiveSlicArgs& args)
 {
+	profiler.reset_timer ();
+
     bool tiling = args.tile_square_side > 0;
 
     if (!tiling)
@@ -95,15 +117,21 @@ AdaptiveSlic::compute_superpixels (const cv::Mat mat_rgb, AdaptiveSlicArgs& args
         // Convert image to CIE LAB color space.
     	SLIC::do_rgb_to_lab_conversion (mat_rgb, image_mat, 0, 0);
 
+    	profiler.update_checkpoint ("rgb_lab conv done");
+
         // Convert image to format suitable for SLIC algo.
         vector<shared_ptr<Image>> imgs;
     	imgs.push_back (make_shared<Image> (image_mat, image_mat.cols, image_mat.rows));
+
+    	profiler.update_checkpoint ("image created");
 
     	// Create labels array to hold labels info
     	if (labels.rows != image_mat.rows)
     	{
     		labels.create (image_mat.rows, image_mat.cols, CV_32SC1);
 		    labels_rect = Rect (0, 0, image_mat.cols, image_mat.rows);
+
+		    grid_mat.create (image_mat.rows, image_mat.cols, CV_8UC1);
     	}
 
     	// Make a new SLIC segmentor if this is first call to this function.
@@ -112,7 +140,9 @@ AdaptiveSlic::compute_superpixels (const cv::Mat mat_rgb, AdaptiveSlicArgs& args
         	slics.push_back (make_shared<SLIC> (imgs.back (), args));
 
         	// set initial seeds
-        	slics.back ()->set_initial_seeds ();
+        	slics.back ()->set_initial_seeds (grid_mat);
+
+        	profiler.update_checkpoint ("seeding done");
         }
         else
         	// Update reference to new image for existing SLICs
@@ -151,6 +181,9 @@ AdaptiveSlic::compute_superpixels (const cv::Mat mat_rgb, AdaptiveSlicArgs& args
 		{
 			labels.create (image_mat.rows, image_mat.cols, CV_32SC1);
 		    labels_rect = Rect (padding_c_left, padding_r_up, mat_rgb.cols, mat_rgb.rows);
+
+		    // TODO: Add grid_mat support for tiling case.
+		    grid_mat.create (image_mat.rows, image_mat.cols, CV_8UC1);
 		}
 
         vector<cv::Mat> mat_segs;
@@ -190,7 +223,7 @@ AdaptiveSlic::compute_superpixels (const cv::Mat mat_rgb, AdaptiveSlicArgs& args
 				slics.back ()->state.update_region_size_from_sp (mat_rgb.rows * mat_rgb.cols, args.numlabels);
 
             	// set initial seeds
-				slics.back ()->set_initial_seeds ();
+				slics.back ()->set_initial_seeds (grid_mat);
 			}
         }
         else
@@ -242,6 +275,7 @@ AdaptiveSlic::compute_superpixels (const cv::Mat mat_rgb, AdaptiveSlicArgs& args
     if (plot)
     {
     	plotter.plots["plot1"].series["target"].add_point (args.target_error);
+    	plotter.plots["plot3"].series["clusters"].add_point (args.num_clusters_updated);
     	plotter.do_plot ();
     }
 
