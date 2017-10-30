@@ -4,3 +4,6 @@
 [submodule "lib_refh"]
 	path = lib_refh
 	url = https://github.com/davidstutz/graph-based-image-segmentation
+[submodule "lib_adaptive_slic/gnuplot-iostream"]
+	path = lib_adaptive_slic/gnuplot-iostream
+	url = https://github.com/dstahlke/gnuplot-iostream.git
