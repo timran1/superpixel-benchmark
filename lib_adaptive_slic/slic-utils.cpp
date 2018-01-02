@@ -18,7 +18,7 @@ IterationState::IterationState ()
 void
 IterationState::init (int sz, int numlabels)
 {
-	distvec.assign(sz, 255);
+	distvec.assign(sz, INT_MAX);
 	iteration_error_individual.assign (numlabels, 255);
 	iter_num = 0;
 	num_clusters_updated = 0;

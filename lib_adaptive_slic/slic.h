@@ -5,8 +5,6 @@
 #include "slic-utils.h"
 #include "opencl-slic.h"
 
-using namespace std;
-
 class SLIC  
 {
 protected:
@@ -40,7 +38,7 @@ public:
 	// sRGB to CIELAB conversion for 2-D images
 	static void do_rgb_to_lab_conversion(const cv::Mat &mat, cv::Mat &out, int padding_c_left, int padding_r_up);
 
-private:
+public:
 	// Calculate distance between two points on image.
 	word calc_dist (const Pixel& p1, const Pixel& p2, float invwt);
 
@@ -64,5 +62,21 @@ private:
 	static void RGB2LAB(const int sR, const int sG, const int sB, float& lval, float& aval, float& bval);
 
 };
+class openCL;
+class hwSLIC : public SLIC
+{
+public:
+	hwSLIC (shared_ptr<Image> img, AdaptiveSlicArgs& args) : SLIC (img, args)
+	{ }
+
+	// sRGB to CIELAB conversion for 2-D images
+	static void do_rgb_to_lab_conversion(const cv::Mat &mat, cv::Mat &out, int padding_c_left, int padding_r_up, openCL& hw);
+
+	// The main SLIC algorithm for generating superpixels
+	void perform_superpixel_slic_iteration (openCL& hw);
+
+};
+
+
 
 #endif // !defined(_SLIC_H_INCLUDED_)

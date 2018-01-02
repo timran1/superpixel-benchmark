@@ -6,7 +6,7 @@ find_package(OpenCV REQUIRED)
 
 include_directories(../lib_eval/ ${OpenCV_INCLUDE_DIRS})
 
-#set(CMAKE_CXX_FLAGS "-g -O0 -std=c++0x")
+set(CMAKE_CXX_FLAGS "-g -O0 -std=c++0x")
 set(CMAKE_CXX_FLAGS "-O4 -std=c++0x")
 
 add_library(adaptive_slic
@@ -15,4 +15,4 @@ add_library(adaptive_slic
     slic-utils.cpp
     opencl-slic.cpp
 )
-target_link_libraries(adaptive_slic eval ${OpenCV_LIBRARIES})
+target_link_libraries(adaptive_slic eval ${OpenCV_LIBRARIES} OpenCL)

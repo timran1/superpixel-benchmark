@@ -30,6 +30,8 @@ public:
 	float compactness;
 	bool perturbseeds;
 	int color;
+	bool parallel;
+	bool gpu;
 
 	// Outputs
 	int num_clusters_updated;
@@ -47,6 +49,8 @@ public:
 		compactness = 40;
 		perturbseeds = false;
 		color = 1;
+		parallel = true;
+		gpu = true;
 
 		num_clusters_updated = 0;
 	}
@@ -57,6 +61,7 @@ class Pixel
 {
 public:
 	char color[3];
+	char pad[1];
 	word coord[2];
 	Pixel ();
 	Pixel (char l, char a, char b, word x, word y);
@@ -94,8 +99,8 @@ public:
 	vector<int> labels;
 
 	// These variables are constant for given SP num and image size.
-	vector<tuple<int,int,int,int>> cluster_range;
-	vector<vector<int>> cluster_associativity_array;
+	vector<int> cluster_range;
+	vector<int> cluster_associativity_array;
 	int region_size = 0;
 
 	void init (AdaptiveSlicArgs& args, int sz);

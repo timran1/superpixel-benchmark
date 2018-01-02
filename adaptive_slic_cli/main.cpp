@@ -16,6 +16,8 @@
 int main(int argc, const char** argv) {
     
     boost::program_options::options_description desc("Allowed options");
+
+  
     desc.add_options()
         ("help,h", "produce help message")
         ("input,i", boost::program_options::value<std::string>(), "the folder to process (can also be passed as positional argument)")
@@ -36,8 +38,10 @@ int main(int argc, const char** argv) {
 	    ("pyramid-pattern", boost::program_options::value<std::string>(), "access pattern for reverse pyramid approach")
 	    ("target-error", boost::program_options::value<double>()->default_value(0.0), "target error to attempt, unless num iterations complete first.")
 	    ("plot", "Plot iteration and error graphs.")
-	    ("grid", "Draw SP grid.");
-
+	    ("grid", "Draw SP grid.")
+        ("parallel", "Parallize Algorithm.")
+        ("gpu", "Parallelize on GPU.");
+ 
         
     boost::program_options::positional_options_description positionals;
     positionals.add("input", 1);
@@ -112,7 +116,20 @@ int main(int argc, const char** argv) {
     if (parameters.find("grid") != parameters.end()) {
         draw_grid = true;
     }
+    
 
+    
+    bool parallel = false;
+    if (parameters.find("parallel") != parameters.end()) {
+    	parallel = true;
+    }
+
+    bool gpu = false;
+    if (parameters.find("gpu") != parameters.end()) {
+        gpu = true;
+        parallel = true;
+    }
+    
     bool wordy = false;
     if (parameters.find("wordy") != parameters.end()) {
         wordy = true;
@@ -202,12 +219,17 @@ int main(int argc, const char** argv) {
             args.iterations = iterations;
             args.numlabels = superpixels;
             args.target_error = float (target_error_factor)/10000;
+            args.parallel = parallel;
+            args.gpu = gpu;
 
             // Capture a frame.
             cap >> image;
 
             if( image.empty() )
+            {
                 std::cout << "Empty frame received. Exiting..." << std::endl;
+                exit (1);
+            }
 
             boost::timer timer;
 
